@@ -1,0 +1,1385 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>OTD Dashboard — Usiquímica</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script src="config.js"></script>
+<script src="data.js"></script>
+<script src="validator.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Arial,sans-serif;background:#f0f2f5;color:#222}
+#header{background:linear-gradient(135deg,#0041a3,#00439d);color:#fff;padding:8px 20px;display:flex;align-items:center;justify-content:space-between;gap:12px;box-shadow:0 3px 12px rgba(0,0,0,.3);position:sticky;top:0;z-index:300;flex-wrap:wrap}
+#header h1{font-size:1.1rem;font-weight:700;display:flex;align-items:center;gap:8px;white-space:nowrap}
+#header h1 span{font-weight:300;opacity:.7;font-size:.9rem}
+.hdr-r{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+#monthSelect{padding:6px 10px;border-radius:7px;border:none;font-size:.85rem;cursor:pointer;background:#fff;color:#222;font-weight:600}
+.btn{padding:7px 14px;border-radius:7px;border:none;font-size:.8rem;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:5px;transition:all .2s;white-space:nowrap}
+.btn:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(0,0,0,.2)}
+.btn-imp{background:#4278c6;color:#fff}.btn-exp{background:#4278c6;color:#fff}.btn-export-xlsx{background:#4278c6;color:#fff}
+.btn-sm{padding:5px 10px;font-size:.75rem;border-radius:6px;border:none;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:4px;transition:all .18s}
+.btn-xlsx{background:#12b600;color:#fff}.btn-xlsx:hover{background:#155c36}
+.btn-csv{background:#12b600;color:#fff}.btn-csv:hover{background:#155c36}
+#fileInput{display:none}
+#tabs{background:#fff;border-bottom:2px solid #e4e8f0;display:flex;align-items:center;padding:0 16px;box-shadow:0 2px 6px rgba(0,0,0,.04);position:sticky;top:64px;z-index:299;overflow-x:auto;overflow-y:visible;-webkit-overflow-scrolling:touch}
+#tabs::-webkit-scrollbar{display:none}
+.tab{padding:12px 16px;cursor:pointer;font-size:.84rem;font-weight:700;color:#888;border-bottom:3px solid transparent;margin-bottom:-2px;transition:all .2s;white-space:nowrap;position:relative;flex-shrink:0}
+.tab.active{color:#1a3a6b;border-bottom:3px solid #1a3a6b}
+.tab:hover:not(.active){color:#444;border-bottom:3px solid #ccc}
+#tabs-spacer{flex:1}
+#last-updated{font-size:.72rem;color:#aaa;white-space:nowrap;display:flex;align-items:center;gap:5px;padding:0 4px;flex-shrink:0}
+#last-updated b{color:#888;font-weight:700}
+#main{padding:14px 16px;max-width:1700px;margin:0 auto}
+
+/* ── TOOLTIP ─── fixed position, never over charts */
+#ftip{
+  position:fixed;
+  background:rgba(15,25,45,.95);color:#fff;
+  font-size:.76rem;padding:9px 13px;border-radius:8px;
+  line-height:1.6;max-width:260px;pointer-events:none;
+  z-index:9000;display:none;
+  box-shadow:0 4px 20px rgba(0,0,0,.35);
+  white-space:pre-line;
+}
+[data-tip]{cursor:help}
+
+/* KPI */
+.kpi-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:11px;margin-bottom:20px}
+.kpi-card{background:#fff;border-radius:12px;padding:16px 10px 12px;box-shadow:0 2px 8px rgba(0,0,0,.07);text-align:center;border-top:4px solid #ccc;transition:transform .18s,box-shadow .18s;cursor:pointer}
+.kpi-card:hover{transform:translateY(-3px);box-shadow:0 8px 22px rgba(0,0,0,.11)}
+.kpi-icon{font-size:1.6rem;margin-bottom:5px}
+.kpi-label{font-size:.65rem;color:#999;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:7px}
+.kpi-value{font-size:1.9rem;font-weight:800;line-height:1}
+.kpi-sub{font-size:.68rem;color:#bbb;margin-top:4px}
+.kpi-hint{font-size:.6rem;color:#c8d4e8;margin-top:3px;font-style:italic}
+
+/* LAYOUT */
+.section-row{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:18px}
+.three-col{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:18px}
+.card{background:#fff;border-radius:12px;padding:18px 20px;box-shadow:0 2px 8px rgba(0,0,0,.07)}
+.card-title{font-size:.8rem;font-weight:700;color:#444;margin-bottom:13px;text-transform:uppercase;letter-spacing:.5px;display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.chart-card{background:#fff;border-radius:12px;padding:18px 20px;box-shadow:0 2px 8px rgba(0,0,0,.07);margin-bottom:18px}
+
+/* CHART WRAPPER — isolates tooltip trigger from chart area */
+.chart-wrap{position:relative}
+.chart-info-btn{position:absolute;top:0;right:0;background:none;border:1px solid #dde;border-radius:6px;padding:3px 8px;font-size:.72rem;cursor:help;color:#999;z-index:2}
+.chart-info-btn:hover{background:#f5f7fc;color:#333}
+
+/* TABLES */
+table{width:100%;border-collapse:collapse;font-size:.845rem}
+th{background:#f5f7fc;color:#555;font-weight:700;padding:8px 10px;text-align:left;border-bottom:2px solid #e8ecf4;white-space:nowrap}
+td{padding:7px 10px;border-bottom:1px solid #eef1f8;vertical-align:middle}
+tbody tr:hover td{background:#f6f9ff}
+tbody tr:last-child td{border:none}
+.clickable-row{cursor:pointer}
+.clickable-row:hover td{background:#edf2ff !important}
+.bar-cell div{height:8px;border-radius:4px;transition:width .4s}
+
+/* BADGES */
+.badge{display:inline-flex;align-items:center;justify-content:center;padding:2px 8px;border-radius:20px;font-size:.75rem;font-weight:700;color:#fff;white-space:nowrap}
+.b-ok{background:#27AE60}.b-warn{background:#F2994A}.b-err{background:#EB5757}.b-early{background:#56CCF2;color:#1a3a6b}.b-exact{background:#1e88e5}
+.motivo-badge{display:inline-block;background:#1a3a6b;color:#fff;border-radius:20px;padding:1px 10px;font-size:.75rem;font-weight:700;min-width:28px;text-align:center}
+.motivo-badge.zero{background:#e0e0e0;color:#999}
+.mot-click-hint{font-size:.67rem;color:#bbb;display:block;margin-top:1px;font-weight:400}
+.mot-pill{display:inline-block;background:#e8f0fe;color:#1a3a6b;padding:2px 7px;border-radius:9px;font-size:.72rem;font-weight:600;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mot-pill.none{background:#f0f0f0;color:#bbb}
+.mot-pill.auto{border:1px dashed #1a3a6b}
+
+/* FILTER */
+.filter-bar{display:flex;gap:10px;margin-bottom:13px;flex-wrap:wrap;align-items:center}
+.filter-bar input,.filter-bar select{padding:7px 11px;border:1.5px solid #dde3f0;border-radius:7px;font-size:.84rem;background:#fff;transition:border .2s}
+.filter-bar input:focus,.filter-bar select:focus{outline:none;border-color:#1a3a6b}
+.filter-bar input{flex:1;min-width:200px}
+.fl{font-size:.77rem;color:#888;font-weight:600;white-space:nowrap}
+
+/* PAGINATION */
+.pgn{display:flex;gap:5px;justify-content:center;margin-top:13px;align-items:center;flex-wrap:wrap}
+.pgn button{padding:5px 11px;border:1.5px solid #dde3f0;border-radius:6px;background:#fff;cursor:pointer;font-size:.8rem;transition:all .15s}
+.pgn button.active{background:#1a3a6b;color:#fff;border-color:#1a3a6b}
+.pgn button:disabled{opacity:.3;cursor:default}
+.pgn button:not(.active):not(:disabled):hover{background:#eef2ff;border-color:#1a3a6b}
+.pgn-info{text-align:center;font-size:.78rem;color:#aaa;margin-top:5px}
+
+/* MODAL */
+.modal-ov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;align-items:center;justify-content:center}
+.modal-ov.open{display:flex}
+.modal{background:#fff;border-radius:14px;max-width:980px;width:96%;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.3);overflow:hidden}
+.modal-hdr{padding:14px 20px;border-bottom:2px solid #eef1f8;display:flex;align-items:flex-start;justify-content:space-between;gap:12px;background:#f8f9fc;flex-shrink:0}
+.modal-hdr h3{font-size:.92rem;font-weight:700;color:#1a3a6b;line-height:1.4}
+.modal-x{background:none;border:none;font-size:1.5rem;cursor:pointer;color:#bbb;flex-shrink:0;line-height:1}
+.modal-x:hover{color:#333}
+/* single scrollable area — everything scrolls together */
+.modal-body{overflow-y:auto;flex:1;padding:0 20px 16px}
+/* thead sticks cleanly — top:0 relative to scroll viewport, no padding gap */
+.modal-body table thead th{position:sticky;top:0;z-index:2;background:#f5f7fc;box-shadow:0 2px 0 #e8ecf4}
+.mstats{display:flex;gap:10px;margin-top:16px;margin-bottom:12px;flex-wrap:wrap}
+.mstat{background:#f5f7fc;border-radius:9px;padding:9px 16px;font-size:.79rem;font-weight:600;color:#666}
+.mstat strong{display:block;font-size:1.1rem;font-weight:800;color:#1a3a6b;margin-top:2px}
+.modal-search{width:100%;padding:7px 11px;border:1.5px solid #dde3f0;border-radius:7px;font-size:.84rem;margin-bottom:10px}
+.modal-search:focus{outline:none;border-color:#1a3a6b}
+
+/* MODAL EXPORT BAR */
+.modal-export-bar{display:flex;gap:7px;align-items:center;margin-bottom:12px;padding:8px 10px;background:#f8f9fc;border-radius:8px;border:1px solid #eee;flex-wrap:wrap}
+.modal-export-bar span{font-size:.75rem;color:#888;font-weight:600;margin-right:4px}
+
+/* HIST */
+.hist-table th,.hist-table td{padding:6px 9px;font-size:.79rem}
+.trend-up{color:#27AE60;font-weight:700}.trend-down{color:#EB5757;font-weight:700}
+
+/* WELCOME */
+#welcome{text-align:center;padding:90px 20px;display:none}
+#welcome h2{font-size:1.8rem;color:#1a3a6b;margin-bottom:14px}
+#welcome p{color:#777;font-size:.93rem;max-width:500px;margin:0 auto 26px;line-height:1.6}
+
+/* TOAST */
+#toast{position:fixed;bottom:26px;right:26px;color:#fff;padding:12px 20px;border-radius:9px;font-weight:600;font-size:.86rem;box-shadow:0 6px 20px rgba(0,0,0,.25);opacity:0;transform:translateY(14px);transition:all .3s;pointer-events:none;z-index:9999;max-width:340px;background:#1a3a6b}
+#toast.show{opacity:1;transform:translateY(0)}
+#toast.s{background:#27AE60}#toast.e{background:#EB5757}
+.tab-content{display:none}
+.tab-content.active{display:block}
+@media(max-width:1350px){
+  .kpi-grid{grid-template-columns:repeat(4,1fr)}
+  .section-row,.three-col{grid-template-columns:1fr 1fr}
+}
+@media(max-width:900px){
+  #header h1 span{display:none}
+  .kpi-grid{grid-template-columns:repeat(2,1fr)}
+  .section-row,.three-col{grid-template-columns:1fr}
+  .filter-bar{flex-direction:column;align-items:stretch}
+  .filter-bar>div{flex-direction:column;align-items:stretch;gap:4px}
+  #main{padding:10px 10px}
+  .card,.chart-card{padding:14px 12px}
+  table{font-size:.78rem}
+  th,td{padding:6px 7px}
+  .modal{width:100%;max-height:94vh;border-radius:12px 12px 0 0;position:fixed;bottom:0;left:0;right:0;margin:0;max-width:100%}
+  .modal-ov{align-items:flex-end}
+  .mstats{gap:7px}
+  .mstat{padding:7px 12px}
+  .modal-body{padding:12px 14px}
+}
+@media(max-width:600px){
+  .kpi-grid{grid-template-columns:repeat(2,1fr)}
+  .kpi-value{font-size:1.5rem}
+  .kpi-icon{font-size:1.3rem}
+  .kpi-hint{display:none}
+  .hist-table th,.hist-table td{padding:5px 5px;font-size:.72rem}
+  #header{padding:9px 12px}
+  .tab{padding:10px 12px;font-size:.78rem}
+  .btn-label{display:none}
+}
+</style>
+</head>
+<body>
+<div id="ftip"></div>
+<div id="header">
+  <h1>📦 OTD Dashboard <span style="display:flex;align-items:center;gap:6px;opacity:1">— <img src="https://i.ibb.co/RkS5WRd5/usiq.png" alt="Usiquímica" style="height:44px;width:auto;object-fit:contain;vertical-align:middle;filter:brightness(0) invert(1)"></span></h1>
+  <div class="hdr-r">
+    <select id="monthSelect"></select>
+    <input type="file" id="fileInput" accept=".xlsx">
+    <button class="btn btn-imp" onclick="document.getElementById('fileInput').click()"><span class="btn-label">Importar Planilha</span></button>
+    <button class="btn btn-export-xlsx" onclick="exportPlanilhaXLSX()"><span class="btn-label">Exportar Planilha</span></button>
+    <button class="btn btn-exp" onclick="exportDataJs()"><span class="btn-label">Exportar data.js</span></button>
+  </div>
+</div>
+<div id="tabs">
+  <div class="tab active" data-tab="overview">📊 Visão Geral</div>
+  <div class="tab" data-tab="history">📅 Histórico</div>
+  <div class="tab" data-tab="details">🔍 Detalhes dos Pedidos</div>
+  <div id="tabs-spacer"></div>
+  <div id="last-updated">🕐 Base atualizada: <b id="lastUpdatedTxt">—</b></div>
+</div>
+<div id="toast"></div>
+
+<!-- MODAL PEDIDOS -->
+<div class="modal-ov" id="pedidosModal">
+  <div class="modal">
+    <div class="modal-hdr"><h3 id="pmTitle"></h3><button class="modal-x" onclick="closeModal('pedidosModal')">✕</button></div>
+    <div class="modal-body">
+      <div class="mstats" id="pmStats"></div>
+      <div class="modal-export-bar">
+        <span>📤 Exportar:</span>
+        <button class="btn-sm btn-xlsx" onclick="exportModalXLSX()">XLSX</button>
+        <button class="btn-sm btn-csv" onclick="exportModalCSV()">CSV</button>
+      </div>
+      <input class="modal-search" id="pmSearch" placeholder="🔍 Buscar neste resultado..." oninput="renderModalTable()">
+      <table><thead><tr id="pmThead"></tr></thead><tbody id="pmBody"></tbody></table>
+      <div class="pgn" id="pmPgn"></div>
+      <div class="pgn-info" id="pmPgnInfo"></div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL MOTIVO -->
+<div class="modal-ov" id="motivoModal">
+  <div class="modal">
+    <div class="modal-hdr"><h3 id="mmTitle"></h3><button class="modal-x" onclick="closeModal('motivoModal')">✕</button></div>
+    <div class="modal-body">
+      <div class="mstats" id="mmStats"></div>
+      <div id="mmExportBar" class="modal-export-bar" style="display:none">
+        <span>📤 Exportar:</span>
+        <button class="btn-sm btn-xlsx" onclick="exportMotivoXLSX()">📊 Excel (.xlsx)</button>
+        <button class="btn-sm btn-csv" onclick="exportMotivoCSV()">📄 CSV</button>
+      </div>
+      <div id="mmBody"></div>
+    </div>
+  </div>
+</div>
+
+<div id="main">
+  <div id="welcome">
+    <h2>👋 Bem-vindo ao OTD Dashboard</h2>
+    <p>Importe uma planilha .xlsx para visualizar os indicadores de On-Time Delivery.</p>
+    <button class="btn btn-imp" style="margin:0 auto;font-size:1rem;padding:13px 30px" onclick="document.getElementById('fileInput').click()">📂 Importar Planilha</button>
+  </div>
+
+  <!-- VISÃO GERAL -->
+  <div id="tab-overview" class="tab-content active">
+    <div class="kpi-grid">
+      <div class="kpi-card" style="border-color:#1a3a6b"
+        data-tip="Total de Pedidos&#10;Todos os pedidos faturados no mês selecionado.&#10;É a base (denominador) de todos os cálculos."
+        onclick="openKpi('total')">
+        <div class="kpi-icon">📦</div><div class="kpi-label">Total de Pedidos</div>
+        <div class="kpi-value" id="kTotal" style="color:#1a3a6b">—</div>
+        <div class="kpi-hint">▶ clique para listar</div>
+      </div>
+      <div class="kpi-card" style="border-color:#27AE60"
+        data-tip="No Prazo (DIAS ≤ 0)&#10;Pedidos entregues na data combinada ou antes.&#10;Fórmula: Data Exata + Adiantados&#10;&#10;Inclui entregas exatas (DIAS=0) e adiantadas (DIAS&lt;0)."
+        onclick="openKpi('noprazo')">
+        <div class="kpi-icon">✅</div><div class="kpi-label">No Prazo (≤ 0)</div>
+        <div class="kpi-value" id="kNoPrazo" style="color:#27AE60">—</div>
+        <div class="kpi-hint">▶ clique para listar</div>
+      </div>
+      <div class="kpi-card" style="border-color:#27AE60"
+        data-tip="Taxa OTD — On-Time Delivery&#10;% de pedidos entregues dentro do prazo.&#10;&#10;Fórmula:&#10;(No Prazo ÷ Total) × 100&#10;&#10;Ex: 711 ÷ 1031 × 100 = 68,96%&#10;&#10;Verde = acima da meta | Vermelho = abaixo">
+        <div class="kpi-icon">🎯</div><div class="kpi-label">Taxa OTD</div>
+        <div class="kpi-value" id="kTaxa">—</div>
+        <div class="kpi-sub" id="kMeta"></div>
+      </div>
+      <div class="kpi-card" style="border-color:#1e88e5"
+        data-tip="Data Exata (DIAS = 0)&#10;Pedidos entregues exatamente na data prometida.&#10;&#10;Fórmula: DT FAT = PREV ENT → DIAS = 0&#10;&#10;Perfeição logística: nem um dia antes, nem um dia depois."
+        onclick="openKpi('exata')">
+        <div class="kpi-icon">📅</div><div class="kpi-label">Data Exata</div>
+        <div class="kpi-value" id="kExata" style="color:#1e88e5">—</div>
+        <div class="kpi-hint">▶ clique para listar</div>
+      </div>
+      <div class="kpi-card" style="border-color:#56CCF2"
+        data-tip="Adiantados (DIAS &lt; 0)&#10;Pedidos entregues antes da data prometida.&#10;&#10;Fórmula: DT FAT &lt; PREV ENT → DIAS negativo&#10;Ex: DIAS = -2 → entregou 2 dias antes&#10;&#10;Pode ser antecipação acordada com o cliente ou folga no planejamento."
+        onclick="openKpi('adiantados')">
+        <div class="kpi-icon">⏩</div><div class="kpi-label">Adiantados</div>
+        <div class="kpi-value" id="kAdiant" style="color:#56CCF2">—</div>
+        <div class="kpi-hint">▶ clique para listar</div>
+      </div>
+      <div class="kpi-card" style="border-color:#EB5757"
+        data-tip="Atrasados (DIAS &gt; 0)&#10;Pedidos entregues após a data prometida.&#10;&#10;Fórmula: DT FAT &gt; PREV ENT → DIAS positivo&#10;Ex: DIAS = +3 → entregou 3 dias depois&#10;&#10;Cada pedido aqui representa um compromisso não cumprido com o cliente."
+        onclick="openKpi('atrasados')">
+        <div class="kpi-icon">⏰</div><div class="kpi-label">Atrasados</div>
+        <div class="kpi-value" id="kAtras" style="color:#EB5757">—</div>
+        <div class="kpi-hint">▶ clique para listar</div>
+      </div>
+      <div class="kpi-card" style="border-color:#F2994A"
+        data-tip="Atrasados Até 5 Dias&#10;Pedidos com DIAS entre 1 e 5.&#10;&#10;Fórmula: 1 ≤ DIAS ≤ 5&#10;&#10;Atrasos pequenos — impactam o cliente mas têm maior chance de recuperação com ajustes de processo.&#10;Atrasos &gt;5 dias são considerados críticos."
+        onclick="openKpi('ate5')">
+        <div class="kpi-icon">📌</div><div class="kpi-label">Até 5d Atraso</div>
+        <div class="kpi-value" id="kAte5" style="color:#F2994A">—</div>
+        <div class="kpi-hint">▶ clique para listar</div>
+      </div>
+    </div>
+
+    <!-- DIST TABLES -->
+    <div class="section-row">
+      <div class="card">
+        <div class="card-title">⏰ Dias de Atraso × Nº Pedidos
+          <span style="font-size:.67rem;font-weight:400;color:#bbb">clique em uma linha para ver os pedidos</span>
+        </div>
+        <table id="tblAtraso">
+          <thead><tr><th>Dias de Atraso</th><th>Nº Pedidos</th><th>% do Total</th><th>Barra</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="card">
+        <div class="card-title">⏩ Dias Adiantamento × Nº Pedidos
+          <span style="font-size:.67rem;font-weight:400;color:#bbb">clique em uma linha para ver os pedidos</span>
+        </div>
+        <table id="tblAdiant">
+          <thead><tr><th>Dias Adiant.</th><th>Nº Pedidos</th><th>% do Total</th><th>Barra</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 3 EXTRA CHARTS -->
+    <div class="three-col">
+
+      <div class="card" style="padding-bottom:14px">
+        <div class="card-title">🏢 Clientes com Mais Atrasos
+          <button class="chart-info-btn" style="position:static;margin-left:auto"
+            data-tip="Top clientes por quantidade de pedidos atrasados no mês.&#10;&#10;Como ler: quanto maior a barra, mais pedidos daquele cliente saíram atrasados.&#10;&#10;Use para priorizar conversas e acordos com os clientes mais impactados.&#10;&#10;▶ Clique em uma barra para ver os pedidos atrasados daquele cliente.">ℹ️</button>
+        </div>
+        <div class="chart-wrap">
+          <canvas id="chartTopClients" height="210"></canvas>
+        </div>
+      </div>
+
+      <div class="card" style="padding-bottom:14px">
+        <div class="card-title">📉 Pico e Concentração dos Atrasos
+          <button class="chart-info-btn" style="position:static;margin-left:auto"
+            data-tip="Histograma completo de todos os valores de DIAS &gt; 0.&#10;&#10;Cada barra = quantos pedidos atrasaram exatamente N dias.&#10;Laranja = 1–5 dias (tolerável) | Vermelho = &gt;5 dias (crítico)&#10;&#10;Onde está o pico? É ali que o processo mais falha.&#10;&#10;▶ Clique em uma barra para ver os pedidos com aquele atraso exato.">ℹ️</button>
+        </div>
+        <div class="chart-wrap">
+          <canvas id="chartDelayDist" height="210"></canvas>
+        </div>
+      </div>
+
+      <div class="card" style="padding-bottom:14px">
+        <div class="card-title">👤 Desempenho por Vendedor
+          <button class="chart-info-btn" style="position:static;margin-left:auto"
+            data-tip="Taxa OTD de cada vendedor no mês.&#10;&#10;Fórmula por vendedor:&#10;(Pedidos no prazo do vendedor ÷ Total de pedidos do vendedor) × 100&#10;&#10;Verde = acima da meta | Vermelho = abaixo da meta&#10;Só exibe vendedores com 2+ pedidos.&#10;&#10;▶ Clique em uma barra para ver todos os pedidos daquele vendedor.">ℹ️</button>
+        </div>
+        <div class="chart-wrap">
+          <canvas id="chartByVendedor" height="210"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- MOTIVOS -->
+    <div class="card" style="margin-bottom:18px">
+      <div class="card-title">
+        📋 Análise sobre os Atrasos — Motivos
+        <span style="font-size:.67rem;font-weight:400;color:#bbb">Auto-detectado na importação · clique para ver pedidos</span>
+      </div>
+      <table>
+        <thead><tr>
+          <th>Motivo</th>
+          <th style="width:115px;text-align:center"
+            data-tip="Nº de pedidos atrasados com este motivo.&#10;&#10;Atribuído automaticamente quando a planilha tem coluna MOTIVO ou OBS com texto correspondente.&#10;&#10;Clique na linha para ver quais pedidos têm este motivo.">Nº Pedidos</th>
+          <th style="width:98px;text-align:center"
+            data-tip="Fórmula:&#10;(Pedidos deste motivo ÷ Total atrasados) × 100&#10;&#10;Mostra o peso relativo de cada causa no total de atrasos do mês.">% Atrasos</th>
+        </tr></thead>
+        <tbody id="motivosBody"></tbody>
+      </table>
+    </div>
+
+    <!-- OVERVIEW CHART -->
+    <div class="chart-card">
+      <div class="card-title"
+        data-tip="Comparativo visual dos 4 grupos do mês.&#10;&#10;Total = todos os pedidos faturados&#10;No Prazo = DIAS ≤ 0 (exato + adiantado)&#10;Adiantados = DIAS &lt; 0&#10;Atrasados = DIAS &gt; 0&#10;&#10;▶ Clique em qualquer barra para ver a lista de pedidos daquele grupo.">
+        📊 Comparativo — Total × No Prazo × Adiantados × Atrasados
+      </div>
+      <canvas id="chartOverview" height="72"></canvas>
+    </div>
+  </div>
+
+  <!-- HISTÓRICO -->
+  <div id="tab-history" class="tab-content">
+    <div class="card" style="margin-bottom:18px;overflow-x:auto">
+      <div class="card-title"
+        data-tip="Evolução mensal de todos os indicadores OTD.&#10;&#10;↑ verde = melhora em relação ao mês anterior&#10;↓ vermelho = piora em relação ao mês anterior&#10;&#10;Para Atrasados e Mais 5d, a lógica é invertida: ↓ verde = menos atrasos = melhora.">
+        📅 Comparativo Mensal
+      </div>
+      <table class="hist-table" id="tblHistory">
+        <thead><tr>
+          <th>Mês</th>
+          <th data-tip="Total de pedidos faturados no mês">Total</th>
+          <th data-tip="Pedidos entregues na data ou antes (DIAS ≤ 0)&#10;= Data Exata + Adiantados">Entrega ≤0</th>
+          <th data-tip="Taxa OTD&#10;Fórmula: (No Prazo ÷ Total) × 100&#10;Meta: configurada em config.js">Taxa OTD</th>
+          <th data-tip="Pedidos entregues exatamente na data prometida&#10;Fórmula: DT FAT = PREV ENT → DIAS = 0">Data Exata</th>
+          <th data-tip="Pedidos entregues antes da data prometida&#10;Fórmula: DT FAT &lt; PREV ENT → DIAS &lt; 0">Adiantados</th>
+          <th data-tip="Pedidos entregues após a data prometida&#10;Fórmula: DT FAT &gt; PREV ENT → DIAS &gt; 0">Atrasados</th>
+          <th data-tip="Pedidos atrasados entre 1 e 5 dias&#10;Fórmula: 1 ≤ DIAS ≤ 5">Até 5d</th>
+          <th data-tip="Pedidos atrasados mais de 5 dias — casos críticos&#10;Fórmula: DIAS &gt; 5">Mais 5d</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <div class="section-row">
+      <div class="chart-card" style="margin-bottom:0">
+        <div class="card-title"
+          data-tip="Evolução da Taxa OTD mês a mês.&#10;&#10;Fórmula: (No Prazo ÷ Total) × 100&#10;Linha tracejada vermelha = meta configurada.&#10;&#10;Ideal: linha azul sempre acima da meta.">
+          📈 Evolução Taxa OTD Mensal
+        </div>
+        <canvas id="chartOTDLine" height="175"></canvas>
+      </div>
+      <div class="chart-card" style="margin-bottom:0">
+        <div class="card-title"
+          data-tip="Total de pedidos (azul escuro) vs. pedidos no prazo (verde) por mês.&#10;&#10;Quanto menor a diferença entre as duas barras, melhor o desempenho OTD.&#10;A diferença representa os pedidos que saíram fora do prazo.">
+          📊 Total de Pedidos vs. No Prazo
+        </div>
+        <canvas id="chartGrouped" height="175"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- DETALHES -->
+  <div id="tab-details" class="tab-content">
+    <div class="filter-bar">
+      <div style="display:flex;align-items:center;gap:6px">
+        <span class="fl">Mês:</span>
+        <select id="detailMonth" style="min-width:155px"></select>
+      </div>
+      <input type="text" id="searchInput" placeholder="🔍 Cliente, pedido, NF, produto, vendedor...">
+      <div style="display:flex;align-items:center;gap:6px">
+        <span class="fl">Status:</span>
+        <select id="filterType" style="min-width:230px">
+          <optgroup label="── Geral ──">
+            <option value="all">Todos os pedidos</option>
+            <option value="noprazo">✅ No Prazo (DIAS ≤ 0)</option>
+            <option value="exato">📅 Data Exata (DIAS = 0)</option>
+          </optgroup>
+          <optgroup label="── Adiantados ──">
+            <option value="adiantados">⏩ Todos os Adiantados</option>
+            <option value="ad1">↩ 1 dia adiantado</option>
+            <option value="ad2">↩ 2 dias adiantados</option>
+            <option value="ad3">↩ 3 dias adiantados</option>
+            <option value="ad5plus">↩ Mais de 5 dias adiantados</option>
+          </optgroup>
+          <optgroup label="── Atrasados ──">
+            <option value="atrasados">⏰ Todos os Atrasados</option>
+            <option value="at1a5">🟠 Atrasados 1–5 dias</option>
+            <option value="at1">🟡 1 dia de atraso</option>
+            <option value="at2">🟡 2 dias de atraso</option>
+            <option value="at3">🟡 3 dias de atraso</option>
+            <option value="at4">🟡 4 dias de atraso</option>
+            <option value="at5">🟡 5 dias de atraso</option>
+            <option value="at5plus">🔴 Mais de 5 dias — Críticos</option>
+          </optgroup>
+          <optgroup label="── Por Motivo ──">
+            <option value="com_motivo">📋 Com motivo atribuído</option>
+            <option value="sem_motivo_atraso">⚠️ Atrasados SEM motivo</option>
+          </optgroup>
+        </select>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px">
+        <span class="fl">Motivo:</span>
+        <select id="filterMotivo" style="min-width:195px"><option value="all">Todos os motivos</option></select>
+      </div>
+    </div>
+    <div class="card" style="overflow-x:auto">
+      <table id="tblDetails">
+        <thead><tr>
+          <th>Pedido</th><th>Cliente</th><th>Gerente</th><th>Vendedor</th><th>Produto</th>
+          <th data-tip="Data de registro do pedido no sistema">Dt. Pedido</th>
+          <th data-tip="Data Solicitada / Prometida de entrega&#10;Campo PREV ENT da planilha">Prev. Entrega</th>
+          <th data-tip="Data real de faturamento/entrega&#10;Campo DT FAT da planilha">Dt. Fat.</th>
+          <th data-tip="DIAS = DT FAT − PREV ENT&#10;&#10;Negativo = adiantado (ex: -2 = 2 dias antes)&#10;Zero = exato na data&#10;Positivo = atrasado (ex: +3 = 3 dias depois)">Dias</th>
+          <th data-tip="Motivo do atraso.&#10;&#10;🔵 Com borda = detectado automaticamente da coluna MOTIVO/OBS da planilha.&#10;Sem borda = atribuído via Visão Geral &gt; Motivos.&#10;&#10;Só pedidos atrasados (DIAS &gt; 0) têm motivo.">Motivo</th>
+          <th>NF</th>
+        </tr></thead>
+        <tbody id="detailBody"></tbody>
+      </table>
+      <div class="pgn" id="pagination"></div>
+      <div class="pgn-info" id="pageInfo"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── CONFIG ────────────────────────────────────────────────────────────────
+const CFG=(window.DASHBOARD_CONFIG&&window.DASHBOARD_CONFIG.otd)||{
+  metaOTD:85,
+  colors:{totalPedidos:"#1a3a6b",noPrazo:"#27AE60",adiantados:"#56CCF2",atrasados:"#EB5757",ate5Dias:"#F2994A",mais5Dias:"#9B1C1C"},
+  motivosAtraso:[
+    "Alinhamentos acordados de forma legítima com clientes",
+    "Falta de estoque para cumprir data do pedido",
+    "Falta de embalagens (IBC, Tambor, BB, Cilindro)",
+    "Cliente se apresentou fora do horário de carregamento (FOB)",
+    "Transporte do cliente se apresentou fora dos parâmetros de Segurança",
+    "Atraso na logística de carregamento por parte da Usiquímica"
+  ]
+};
+
+// ── STATE ─────────────────────────────────────────────────────────────────
+let otdData={exportedAt:"",months:{}};
+let motivoAssignments={};
+let charts={};
+let dtPage=1,dtFiltered=[];
+let pmPage=1,pmRows=[];
+const PS=20,PM=15;
+
+// ── TOOLTIP — JS floating, never over charts ──────────────────────────────
+(()=>{
+  const tip=document.getElementById("ftip");
+  let cur=null;
+  document.addEventListener("mouseover",e=>{
+    const el=e.target.closest("[data-tip]");
+    if(el===cur)return;
+    cur=el;
+    if(!el){tip.style.display="none";return;}
+    tip.textContent=el.getAttribute("data-tip");
+    tip.style.display="block";
+  });
+  document.addEventListener("mousemove",e=>{
+    if(!cur||tip.style.display==="none")return;
+    const tw=tip.offsetWidth,th2=tip.offsetHeight;
+    const vw=window.innerWidth,vh=window.innerHeight;
+    // Prefer below cursor, shift left if near right edge
+    let x=e.clientX+16,y=e.clientY+20;
+    if(x+tw>vw-12)x=e.clientX-tw-16;
+    if(y+th2>vh-12)y=e.clientY-th2-12;
+    if(x<8)x=8;if(y<108)y=108; // never behind sticky header+tabs
+    tip.style.left=x+"px";tip.style.top=y+"px";
+  });
+  document.addEventListener("mouseout",e=>{
+    if(cur&&!cur.contains(e.relatedTarget)){cur=null;tip.style.display="none";}
+  });
+})();
+
+// ── INIT ─────────────────────────────────────────────────────────────────
+window.addEventListener("load",()=>{
+  try{const s=localStorage.getItem("otdData");if(s)otdData=JSON.parse(s);}catch(e){}
+  try{const s=localStorage.getItem("motivoAssignments");if(s)motivoAssignments=JSON.parse(s);}catch(e){}
+  if(window.otdData&&window.otdData.months){
+    Object.keys(window.otdData.months).forEach(k=>{if(!otdData.months[k])otdData.months[k]=window.otdData.months[k];});
+    if(!otdData.exportedAt)otdData.exportedAt=window.otdData.exportedAt;
+  }
+  if(Object.keys(otdData.months).length>0){buildSels();renderAll();updateLastUpdated();}
+  else{document.getElementById("welcome").style.display="block";document.getElementById("tab-overview").classList.remove("active");}
+
+  document.getElementById("fileInput").addEventListener("change",importXLSX);
+  document.querySelectorAll(".tab").forEach(t=>t.addEventListener("click",()=>switchTab(t.dataset.tab)));
+
+  // Dynamic tabs positioning — recalc whenever header height changes (wrap on small screens)
+  function fixTabsTop(){
+    const h=document.getElementById("header").getBoundingClientRect().height;
+    document.getElementById("tabs").style.top=Math.round(h)+"px";
+  }
+  fixTabsTop();
+  window.addEventListener("resize",fixTabsTop);
+  new ResizeObserver(fixTabsTop).observe(document.getElementById("header"));
+  // monthSelect changes overview AND syncs detailMonth
+  document.getElementById("monthSelect").addEventListener("change",()=>{
+    const mk=document.getElementById("monthSelect").value;
+    document.getElementById("detailMonth").value=mk;
+    renderAll();
+    // If currently on Detalhes tab, re-render it immediately
+    if(document.querySelector(".tab[data-tab='details']").classList.contains("active")){
+      dtPage=1;renderDetails();
+    }
+  });
+  // detailMonth changes sync back to monthSelect and re-render details
+  document.getElementById("detailMonth").addEventListener("change",()=>{
+    document.getElementById("monthSelect").value=document.getElementById("detailMonth").value;
+    dtPage=1;renderDetails();
+  });
+  document.getElementById("searchInput").addEventListener("input",()=>{dtPage=1;renderDetails();});
+  document.getElementById("filterType").addEventListener("change",()=>{dtPage=1;renderDetails();});
+  document.getElementById("filterMotivo").addEventListener("change",()=>{dtPage=1;renderDetails();});
+  document.querySelectorAll(".modal-ov").forEach(m=>m.addEventListener("click",e=>{if(e.target===e.currentTarget)closeModal(e.target.id);}));
+  document.addEventListener("keydown",e=>{if(e.key==="Escape"){document.querySelectorAll(".modal-ov.open").forEach(m=>closeModal(m.id));}});
+});
+
+function switchTab(id){
+  document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("active",t.dataset.tab===id));
+  document.querySelectorAll(".tab-content").forEach(c=>c.classList.toggle("active",c.id==="tab-"+id));
+  if(id==="history")renderHistory();
+  if(id==="details"){
+    // Sync detailMonth with current monthSelect when entering tab
+    const mk=document.getElementById("monthSelect").value;
+    document.getElementById("detailMonth").value=mk;
+    renderDetails();
+  }
+}
+
+// ── SELECTORS ─────────────────────────────────────────────────────────────
+function buildSels(){
+  const keys=sortedMonths();
+  ["monthSelect","detailMonth"].forEach(sid=>{
+    const sel=document.getElementById(sid);
+    const prev=sel.value;
+    sel.innerHTML="";
+    keys.forEach(k=>{const o=document.createElement("option");o.value=k;o.text=otdData.months[k].label||k;sel.appendChild(o);});
+    sel.value=keys.includes(prev)?prev:keys[keys.length-1];
+  });
+  const fs=document.getElementById("filterMotivo");
+  fs.innerHTML="<option value=\"all\">Todos os motivos</option>";
+  CFG.motivosAtraso.forEach((m,i)=>{const o=document.createElement("option");o.value=String(i);o.text=trunc(m,46);fs.appendChild(o);});
+}
+
+function sortedMonths(){return Object.keys(otdData.months).sort();}
+function curMo(){return otdData.months[document.getElementById("monthSelect").value];}
+function curMK(){return document.getElementById("monthSelect").value;}
+
+// ── MAIN RENDER ───────────────────────────────────────────────────────────
+function renderAll(){const m=curMo();if(!m)return;renderKPIs(m);renderDist(m);renderMotivos(m);renderOverviewChart(m);renderExtraCharts(m);}
+
+function renderKPIs(m){
+  s("kTotal",m.totalPedidos);s("kNoPrazo",m.pedidosNoPrazo);s("kExata",m.pedidosDataExata);
+  s("kAdiant",m.pedidosAdiantados);s("kAtras",m.pedidosAtrasados);s("kAte5",m.pedidosAte5DiasAtraso);
+  const el=document.getElementById("kTaxa"),ok=m.taxaOTD>=CFG.metaOTD;
+  el.textContent=m.taxaOTD.toFixed(2).replace(".",",")+"%";
+  el.style.color=ok?"#27AE60":"#EB5757";
+  el.closest(".kpi-card").style.borderColor=ok?"#27AE60":"#EB5757";
+  // update Taxa OTD tooltip dynamically
+  el.closest(".kpi-card").setAttribute("data-tip",
+    "Taxa OTD — On-Time Delivery\n% de pedidos entregues dentro do prazo.\n\nFórmula:\n(No Prazo ÷ Total) × 100\n\n"+
+    m.pedidosNoPrazo+" ÷ "+m.totalPedidos+" × 100 = "+m.taxaOTD.toFixed(2)+"%\n\n"+
+    (ok?"✅ Acima da meta ("+CFG.metaOTD+"%)":"⚠️ Abaixo da meta ("+CFG.metaOTD+"%)")
+  );
+  document.getElementById("kMeta").textContent="Meta: "+CFG.metaOTD+"%";
+}
+function s(id,v){const el=document.getElementById(id);if(el)el.textContent=v;}
+
+// ── DIST TABLES ───────────────────────────────────────────────────────────
+function renderDist(m){
+  const total=m.totalPedidos;
+  const maxA=Math.max(...["1","2","3","4","5","n>5"].map(k=>(m.distribuicaoAtraso||{})[k]||0),1);
+  const maxD=Math.max(...["1","2","3","4","5","n>5"].map(k=>(m.distribuicaoAdiantamento||{})[k]||0),1);
+
+  const tbA=document.querySelector("#tblAtraso tbody");tbA.innerHTML="";
+  ["1","2","3","4","5","n>5"].forEach(k=>{
+    const v=(m.distribuicaoAtraso||{})[k]||0,pct=total?(v/total*100).toFixed(1):"0.0",bw=Math.round(v/maxA*100);
+    const label=k==="n>5"?"Mais de 5 dias":k+" dia"+(k==="1"?"":"s");
+    const fk=k==="n>5"?"at5plus":"at"+k;
+    const tr=document.createElement("tr");tr.className="clickable-row";
+    tr.innerHTML=`<td>${label}</td><td><strong>${v}</strong></td><td>${pct}%</td><td style="width:120px"><div style="background:#EB5757;height:8px;border-radius:4px;width:${bw}%;min-width:${v?3:0}px"></div></td>`;
+    tr.onclick=()=>{if(v>0)openKpi(fk);}
+    tr.title=v>0?`Ver os ${v} pedidos com ${label} de atraso`:"Nenhum pedido";
+    if(!v)tr.style.opacity=".45";
+    tbA.appendChild(tr);
+  });
+
+  const tbD=document.querySelector("#tblAdiant tbody");tbD.innerHTML="";
+  ["1","2","3","4","5","n>5"].forEach(k=>{
+    const v=(m.distribuicaoAdiantamento||{})[k]||0,pct=total?(v/total*100).toFixed(1):"0.0",bw=Math.round(v/maxD*100);
+    const label=k==="n>5"?"Mais de 5 dias":k+" dia"+(k==="1"?"":"s");
+    const fk=k==="n>5"?"ad5plus":"ad"+k;
+    const tr=document.createElement("tr");tr.className="clickable-row";
+    tr.innerHTML=`<td>${label}</td><td><strong>${v}</strong></td><td>${pct}%</td><td style="width:120px"><div style="background:#56CCF2;height:8px;border-radius:4px;width:${bw}%;min-width:${v?3:0}px"></div></td>`;
+    tr.onclick=()=>{if(v>0)openKpi(fk);}
+    tr.title=v>0?`Ver os ${v} pedidos com ${label} de adiantamento`:"Nenhum pedido";
+    if(!v)tr.style.opacity=".45";
+    tbD.appendChild(tr);
+  });
+}
+
+// ── MOTIVOS ───────────────────────────────────────────────────────────────
+function getMotivoIdx(mk,pedido){return motivoAssignments[mk+":"+pedido];}
+function getMotivoCount(mk,idx){return((otdData.months[mk]||{}).pedidos||[]).filter(p=>p.dias>0&&getMotivoIdx(mk,p.pedido)===idx).length;}
+
+function renderMotivos(m){
+  const mk=curMK(),atras=m.pedidosAtrasados||0;
+  const tb=document.getElementById("motivosBody");tb.innerHTML="";
+  CFG.motivosAtraso.forEach((mot,i)=>{
+    const cnt=getMotivoCount(mk,i),pct=atras?(cnt/atras*100).toFixed(1):"0.0";
+    const tr=document.createElement("tr");tr.className="clickable-row";
+    tr.onclick=()=>openMotivoModal(i);
+    tr.innerHTML=`<td>${mot}<span class="mot-click-hint">▶ clique para ver pedidos</span></td><td style="text-align:center"><span class="motivo-badge ${cnt===0?"zero":""}">${cnt}</span></td><td style="text-align:center">${pct}%</td>`;
+    tb.appendChild(tr);
+  });
+  const sem=((m.pedidos)||[]).filter(p=>p.dias>0&&getMotivoIdx(mk,p.pedido)===undefined).length;
+  const pctSem=atras?(sem/atras*100).toFixed(1):"0.0";
+  tb.innerHTML+=`<tr style="background:#fffbf0"><td style="color:#F2994A;font-style:italic">⚠️ Sem motivo atribuído</td><td style="text-align:center"><span class="motivo-badge ${sem===0?"zero":""}" style="background:${sem>0?"#F2994A":"#ddd"}">${sem}</span></td><td style="text-align:center">${pctSem}%</td></tr>`;
+}
+
+// ── KPI MODAL DEFINITIONS ─────────────────────────────────────────────────
+const KPI_DEFS={
+  total:{title:"📦 Todos os Pedidos do Mês",filter:p=>true},
+  noprazo:{title:"✅ Pedidos No Prazo (DIAS ≤ 0)",filter:p=>p.dias<=0},
+  exata:{title:"📅 Pedidos — Data Exata (DIAS = 0)",filter:p=>p.dias===0},
+  adiantados:{title:"⏩ Pedidos Adiantados (DIAS < 0)",filter:p=>p.dias<0},
+  atrasados:{title:"⏰ Todos os Pedidos Atrasados (DIAS > 0)",filter:p=>p.dias>0},
+  ate5:{title:"📌 Pedidos Atrasados 1–5 dias",filter:p=>p.dias>=1&&p.dias<=5},
+  at1a5:{title:"🟠 Pedidos Atrasados 1–5 dias",filter:p=>p.dias>=1&&p.dias<=5},
+  at1:{title:"🟡 Pedidos com 1 dia de atraso",filter:p=>p.dias===1},
+  at2:{title:"🟡 Pedidos com 2 dias de atraso",filter:p=>p.dias===2},
+  at3:{title:"🟡 Pedidos com 3 dias de atraso",filter:p=>p.dias===3},
+  at4:{title:"🟡 Pedidos com 4 dias de atraso",filter:p=>p.dias===4},
+  at5:{title:"🟡 Pedidos com 5 dias de atraso",filter:p=>p.dias===5},
+  at5plus:{title:"🔴 Pedidos Críticos — Mais de 5 dias de atraso",filter:p=>p.dias>5},
+  ad1:{title:"↩ Pedidos adiantados 1 dia",filter:p=>p.dias===-1},
+  ad2:{title:"↩ Pedidos adiantados 2 dias",filter:p=>p.dias===-2},
+  ad3:{title:"↩ Pedidos adiantados 3 dias",filter:p=>p.dias===-3},
+  ad4:{title:"↩ Pedidos adiantados 4 dias",filter:p=>p.dias===-4},
+  ad5:{title:"↩ Pedidos adiantados 5 dias",filter:p=>p.dias===-5},
+  ad5plus:{title:"↩ Pedidos adiantados mais de 5 dias",filter:p=>p.dias<-5},
+};
+
+function openKpi(key,extraTitle){
+  const def=KPI_DEFS[key];if(!def)return;
+  const m=curMo();if(!m||!m.pedidos)return;
+  const mk=curMK();
+  pmRows=m.pedidos.filter(def.filter);
+  // Guard: don't open empty modal — show feedback instead
+  if(!pmRows.length){toast("ℹ️ Nenhum pedido nesta categoria para "+( otdData.months[mk].label||mk));return;}
+  const title=extraTitle||def.title;
+  document.getElementById("pmTitle").textContent=title+" — "+( otdData.months[mk].label||mk);
+  const totalVal=pmRows.reduce((a,p)=>a+p.vlrMerc,0);
+  const delayed=pmRows.filter(p=>p.dias>0);
+  const avgD=delayed.length?(delayed.reduce((a,p)=>a+p.dias,0)/delayed.length).toFixed(1):null;
+  const maxD=delayed.length?Math.max(...delayed.map(p=>p.dias)):null;
+  let st=`<div class="mstat">Pedidos<strong>${pmRows.length}</strong></div><div class="mstat">Valor Total<strong>R$ ${fmtM(totalVal)}</strong></div>`;
+  if(avgD!==null)st+=`<div class="mstat">Atraso Médio<strong>${avgD}d</strong></div>`;
+  if(maxD!==null)st+=`<div class="mstat">Maior Atraso<strong>${maxD}d</strong></div>`;
+  document.getElementById("pmStats").innerHTML=st;
+  document.getElementById("pmSearch").value="";
+  pmPage=1;renderModalTable();
+  openModal("pedidosModal");
+}
+
+function renderModalTable(){
+  const srch=document.getElementById("pmSearch").value.toLowerCase();
+  const mk=curMK();
+  const filtered=srch?pmRows.filter(p=>{
+    return `${p.pedido} ${p.nomeFantasia} ${p.descricao} ${p.vendedor} ${p.nf} ${p.gerente}`.toLowerCase().includes(srch);
+  }):pmRows;
+  const total=filtered.length,pages=Math.ceil(total/PM)||1;
+  pmPage=Math.min(pmPage,pages);
+  const start=(pmPage-1)*PM,slice=filtered.slice(start,start+PM);
+  document.getElementById("pmThead").innerHTML="<th>Pedido</th><th>Cliente</th><th>Vendedor</th><th>Gerente</th><th>Produto</th><th>Prev.Entrega</th><th>Dt.Fat.</th><th>Dias</th><th>Valor (R$)</th><th>NF</th>";
+  const tb=document.getElementById("pmBody");
+  tb.innerHTML=slice.map(p=>{
+    const b=p.dias<0?`<span class="badge b-early">${p.dias}d</span>`:p.dias===0?`<span class="badge b-exact">0d</span>`:p.dias<=5?`<span class="badge b-warn">+${p.dias}d</span>`:`<span class="badge b-err">+${p.dias}d</span>`;
+    return `<tr><td><strong>${p.pedido}</strong></td><td title="${p.cliente}">${trunc(p.nomeFantasia,22)}</td><td>${p.vendedor}</td><td>${trunc(p.gerente||"",16)}</td><td title="${p.descricao}">${trunc(p.descricao,24)}</td><td>${p.prevEnt}</td><td>${p.dtFat}</td><td style="text-align:center">${b}</td><td style="text-align:right;white-space:nowrap">${fmtM(p.vlrMerc)}</td><td>${p.nf}</td></tr>`;
+  }).join("");
+  const pg=document.getElementById("pmPgn");
+  let h=`<button onclick="goMP(${pmPage-1})" ${pmPage===1?"disabled":""}>‹</button>`;
+  for(let i=1;i<=pages;i++){if(pages>8&&i>2&&i<pages-1&&Math.abs(i-pmPage)>1){if(i===3||i===pages-2)h+=`<span style="padding:0 4px;color:#bbb">…</span>`;continue;}h+=`<button class="${i===pmPage?"active":""}" onclick="goMP(${i})">${i}</button>`;}
+  h+=`<button onclick="goMP(${pmPage+1})" ${pmPage===pages?"disabled":""}>›</button>`;
+  pg.innerHTML=h;
+  document.getElementById("pmPgnInfo").textContent=`Mostrando ${start+1}–${Math.min(start+PM,total)} de ${total} pedidos`;
+}
+function goMP(p){pmPage=p;renderModalTable();}
+
+// ── MOTIVO MODAL ─────────────────────────────────────────────────────────
+let mmCurrentPeds=[];
+let mmCurrentTitle="";
+function openMotivoModal(idx){
+  const mk=curMK(),m=otdData.months[mk];if(!m)return;
+  const mot=CFG.motivosAtraso[idx];
+  if(!mot){toast("⚠️ Motivo não encontrado. Verifique o config.js.");return;}
+  const peds=(m.pedidos||[]).filter(p=>p.dias>0&&getMotivoIdx(mk,p.pedido)===idx);
+  mmCurrentPeds=peds;mmCurrentTitle=mot;
+  document.getElementById("mmTitle").textContent="📋 "+mot;
+  const expBar=document.getElementById("mmExportBar");
+  expBar.style.display=peds.length?"flex":"none";
+  const totalV=peds.reduce((a,p)=>a+p.vlrMerc,0);
+  const avgD=peds.length?(peds.reduce((a,p)=>a+p.dias,0)/peds.length).toFixed(1):0;
+  const maxD=peds.length?Math.max(...peds.map(p=>p.dias)):0;
+  document.getElementById("mmStats").innerHTML=`<div class="mstat">Pedidos<strong>${peds.length}</strong></div><div class="mstat">Valor Total<strong>R$ ${fmtM(totalV)}</strong></div><div class="mstat">Atraso Médio<strong>${avgD}d</strong></div><div class="mstat">Maior Atraso<strong>${maxD}d</strong></div>`;
+  let bodyHtml="";
+  if(!peds.length){
+    bodyHtml="<p style='color:#aaa;text-align:center;padding:30px;font-size:.9rem'>Nenhum pedido com este motivo ainda.<br><small style='color:#ccc'>A atribuição é automática via coluna MOTIVO/OBS na planilha.</small></p>";
+  }else{
+    bodyHtml=`<table><thead><tr><th>Pedido</th><th>Cliente</th><th>Vendedor</th><th>Produto</th><th>Prev. Entrega</th><th>Dt. Fat.</th><th>Dias</th><th>Valor (R$)</th></tr></thead><tbody>`;
+    peds.forEach(p=>{const b=p.dias<=5?`<span class="badge b-warn">+${p.dias}d</span>`:`<span class="badge b-err">+${p.dias}d</span>`;bodyHtml+=`<tr><td><strong>${p.pedido}</strong></td><td title="${p.cliente}">${trunc(p.nomeFantasia,22)}</td><td>${p.vendedor}</td><td title="${p.descricao}">${trunc(p.descricao,28)}</td><td>${p.prevEnt}</td><td>${p.dtFat}</td><td style="text-align:center">${b}</td><td style="text-align:right">${fmtM(p.vlrMerc)}</td></tr>`;});
+    bodyHtml+="</tbody></table>";
+  }
+  document.getElementById("mmBody").innerHTML=bodyHtml;
+  openModal("motivoModal");
+}
+
+// ── MODAL EXPORTS ─────────────────────────────────────────────────────────
+function getModalExportRows(rows){
+  const mk=curMK();
+  return rows.map(p=>{
+    const motivoIdx=motivoAssignments[mk+":"+p.pedido];
+    const motivoTxt=motivoIdx!==undefined?(CFG.motivosAtraso[motivoIdx]||""):"";
+    return {
+      "Pedido":p.pedido,"Cliente":p.nomeFantasia,"CNPJ/Cód.":p.cliente,
+      "Gerente":p.gerente,"Vendedor":p.vendedor,
+      "Cód. Produto":p.codProd,"Produto":p.descricao,
+      "Dt. Pedido":fmtDate(p.dtPedido),"Prev. Entrega":p.prevEnt||"","Dt. Fat.":p.dtFat||"",
+      "Dias":p.dias,"Status":p.dias<0?"Adiantado":p.dias===0?"No Prazo — Data Exata":"Atrasado",
+      "Valor (R$)":p.vlrMerc,"Qtde":p.qtde,"NF":p.nf,"Situação":p.situacao,
+      "Motivo Atraso":motivoTxt
+    };
+  });
+}
+
+function exportModalXLSX(){
+  if(!pmRows.length){toast("⚠️ Nenhum dado para exportar");return;}
+  const title=document.getElementById("pmTitle").textContent.replace(/[^a-zA-Z0-9\s\-]/g,"").trim().slice(0,30)||"OTD";
+  const data=getModalExportRows(pmRows);
+  const ws=XLSX.utils.json_to_sheet(data);
+  // Auto column widths
+  const cols=Object.keys(data[0]);
+  ws["!cols"]=cols.map(k=>({wch:Math.max(k.length,String(data[0][k]||"").length,14)}));
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Pedidos");
+  XLSX.writeFile(wb,"OTD_"+title.replace(/\s+/g,"_")+"_"+dateStamp()+".xlsx");
+  toast("✅ Excel exportado!","s");
+}
+
+function exportModalCSV(){
+  if(!pmRows.length){toast("⚠️ Nenhum dado para exportar");return;}
+  const title=document.getElementById("pmTitle").textContent.replace(/[^a-zA-Z0-9\s\-]/g,"").trim().slice(0,30)||"OTD";
+  const data=getModalExportRows(pmRows);
+  const headers=Object.keys(data[0]);
+  const csv=[headers.join(";"),...data.map(r=>headers.map(h=>String(r[h]||"").replace(/;/g,",")).join(";"))].join("\n");
+  const bom="\uFEFF";
+  triggerDL(bom+csv,"OTD_"+title.replace(/\s+/g,"_")+"_"+dateStamp()+".csv","text/csv;charset=utf-8");
+  toast("✅ CSV exportado!","s");
+}
+
+function getMotivoExportRows(rows){
+  return rows.map(p=>({
+    "Pedido":p.pedido,"Cliente":p.nomeFantasia,"CNPJ/Cód.":p.cliente,
+    "Vendedor":p.vendedor,"Produto":p.descricao,
+    "Prev. Entrega":p.prevEnt,"Dt. Fat.":p.dtFat,
+    "Dias Atraso":p.dias,"Valor (R$)":p.vlrMerc,"NF":p.nf
+  }));
+}
+
+function exportMotivoXLSX(){
+  if(!mmCurrentPeds.length){toast("⚠️ Nenhum dado para exportar");return;}
+  const data=getMotivoExportRows(mmCurrentPeds);
+  const ws=XLSX.utils.json_to_sheet(data);
+  const cols=Object.keys(data[0]);
+  ws["!cols"]=cols.map(k=>({wch:Math.max(k.length,14)}));
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Pedidos");
+  XLSX.writeFile(wb,"OTD_Motivo_"+dateStamp()+".xlsx");
+  toast("✅ Excel exportado!","s");
+}
+
+function exportMotivoCSV(){
+  if(!mmCurrentPeds.length){toast("⚠️ Nenhum dado para exportar");return;}
+  const data=getMotivoExportRows(mmCurrentPeds);
+  const headers=Object.keys(data[0]);
+  const csv=[headers.join(";"),...data.map(r=>headers.map(h=>String(r[h]||"").replace(/;/g,",")).join(";"))].join("\n");
+  triggerDL("\uFEFF"+csv,"OTD_Motivo_"+dateStamp()+".csv","text/csv;charset=utf-8");
+  toast("✅ CSV exportado!","s");
+}
+
+function dateStamp(){const n=new Date();return`${n.getFullYear()}${String(n.getMonth()+1).padStart(2,"0")}${String(n.getDate()).padStart(2,"0")}`;}
+function triggerDL(content,filename,mime){const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([content],{type:mime}));a.download=filename;a.click();URL.revokeObjectURL(a.href);}
+
+function openModal(id){document.getElementById(id).classList.add("open");document.body.style.overflow="hidden";}
+function closeModal(id){document.getElementById(id).classList.remove("open");if(!document.querySelector(".modal-ov.open"))document.body.style.overflow="";}
+
+// ── OVERVIEW CHART ────────────────────────────────────────────────────────
+function renderOverviewChart(m){
+  destroyChart("ov");
+  const keys=["total","noprazo","adiantados","atrasados"];
+  charts.ov=new Chart(document.getElementById("chartOverview").getContext("2d"),{
+    type:"bar",
+    data:{
+      labels:["Total","No Prazo (≤0)","Adiantados","Atrasados"],
+      datasets:[{
+        data:[m.totalPedidos,m.pedidosNoPrazo,m.pedidosAdiantados,m.pedidosAtrasados],
+        backgroundColor:[CFG.colors.totalPedidos,CFG.colors.noPrazo,CFG.colors.adiantados,CFG.colors.atrasados],
+        borderRadius:8,borderSkipped:false
+      }]
+    },
+    options:{
+      responsive:true,
+      plugins:{
+        legend:{display:false},
+        tooltip:{
+          callbacks:{
+            title:ctx=>ctx[0].label,
+            label:ctx=>`${ctx.parsed.y} pedidos`,
+            afterLabel:ctx=>`${m.totalPedidos?((ctx.parsed.y/m.totalPedidos)*100).toFixed(1):"0.0"}% do total`
+          }
+        }
+      },
+      scales:{y:{beginAtZero:true,ticks:{stepSize:50}}},
+      onClick:(evt,els)=>{if(els.length)openKpi(keys[els[0].index]);}
+    }
+  });
+}
+
+// ── EXTRA CHARTS ──────────────────────────────────────────────────────────
+function renderExtraCharts(m){
+  const peds=m.pedidos||[];
+
+  // 1. Top clients delayed
+  destroyChart("tc");
+  const cMap={};
+  peds.filter(p=>p.dias>0).forEach(p=>{const c=trunc(p.nomeFantasia||p.cliente,22)||"?";cMap[c]=(cMap[c]||[]).concat(p);});
+  const topC=Object.entries(cMap).map(([c,arr])=>({c,n:arr.length,peds:arr})).sort((a,b)=>b.n-a.n).slice(0,10);
+  if(topC.length){
+    charts.tc=new Chart(document.getElementById("chartTopClients").getContext("2d"),{
+      type:"bar",
+      data:{
+        labels:topC.map(x=>x.c),
+        datasets:[{
+          label:"Pedidos atrasados",
+          data:topC.map(x=>x.n),
+          backgroundColor:"#EB5757",borderRadius:5
+        }]
+      },
+      options:{
+        indexAxis:"y",responsive:true,
+        plugins:{
+          legend:{display:false},
+          tooltip:{callbacks:{title:ctx=>ctx[0].label,label:ctx=>`${ctx.parsed.x} pedido${ctx.parsed.x===1?"":"s"} atrasado${ctx.parsed.x===1?"":"s"}`,afterLabel:ctx=>{const entry=topC[ctx.dataIndex];const avgD=(entry.peds.reduce((a,p)=>a+p.dias,0)/entry.peds.length).toFixed(1);return`Atraso médio: ${avgD} dias\n▶ Clique para ver os pedidos`;}}}
+        },
+        scales:{x:{beginAtZero:true,ticks:{stepSize:1},title:{display:true,text:"Nº de pedidos atrasados",font:{size:11},color:"#888"}}},
+        onClick:(evt,els)=>{
+          if(!els.length)return;
+          const entry=topC[els[0].index];
+          pmRows=entry.peds;
+          document.getElementById("pmTitle").textContent="🏢 Atrasos — "+entry.c;
+          const avg=(entry.peds.reduce((a,p)=>a+p.dias,0)/entry.peds.length).toFixed(1);
+          const maxD=Math.max(...entry.peds.map(p=>p.dias));
+          document.getElementById("pmStats").innerHTML=`<div class="mstat">Pedidos atrasados<strong>${entry.n}</strong></div><div class="mstat">Valor Total<strong>R$ ${fmtM(entry.peds.reduce((a,p)=>a+p.vlrMerc,0))}</strong></div><div class="mstat">Atraso Médio<strong>${avg}d</strong></div><div class="mstat">Maior Atraso<strong>${maxD}d</strong></div>`;
+          document.getElementById("pmSearch").value="";pmPage=1;renderModalTable();
+          openModal("pedidosModal");
+        }
+      }
+    });
+  }else{clearCanvas("chartTopClients","✅ Nenhum atraso neste mês!");}
+
+  // 2. Delay distribution detailed
+  destroyChart("dd");
+  const freq={};
+  peds.filter(p=>p.dias>0).forEach(p=>{freq[p.dias]=(freq[p.dias]||[]).concat(p);});
+  const sortedKeys=Object.keys(freq).map(Number).sort((a,b)=>a-b);
+  if(sortedKeys.length){
+    charts.dd=new Chart(document.getElementById("chartDelayDist").getContext("2d"),{
+      type:"bar",
+      data:{
+        labels:sortedKeys.map(d=>d+"d"),
+        datasets:[{
+          label:"Pedidos",
+          data:sortedKeys.map(d=>freq[d].length),
+          backgroundColor:sortedKeys.map(d=>d>5?"#EB5757":"#F2994A"),
+          borderRadius:4
+        }]
+      },
+      options:{
+        responsive:true,
+        plugins:{
+          legend:{display:false},
+          tooltip:{callbacks:{
+            title:ctx=>`Atraso: ${ctx[0].label}`,
+            label:ctx=>`${ctx.parsed.y} pedido${ctx.parsed.y===1?"":"s"}`,
+            afterLabel:()=>`▶ Clique para ver os pedidos`
+          }}
+        },
+        scales:{
+          y:{beginAtZero:true,ticks:{stepSize:1},title:{display:true,text:"Nº de pedidos",font:{size:11},color:"#888"}},
+          x:{title:{display:true,text:"Dias de atraso (laranja=1–5d, vermelho=>5d)",font:{size:10},color:"#888"}}
+        },
+        onClick:(evt,els)=>{
+          if(!els.length)return;
+          const d=sortedKeys[els[0].index];
+          pmRows=freq[d];
+          document.getElementById("pmTitle").textContent=`📉 Pedidos com ${d} dia${d===1?"":"s"} de atraso`;
+          const totalV=pmRows.reduce((a,p)=>a+p.vlrMerc,0);
+          document.getElementById("pmStats").innerHTML=`<div class="mstat">Pedidos<strong>${pmRows.length}</strong></div><div class="mstat">Valor Total<strong>R$ ${fmtM(pmRows.reduce((a,p)=>a+p.vlrMerc,0))}</strong></div><div class="mstat">Atraso<strong>${d} dia${d===1?"":"s"}</strong></div>`;
+          document.getElementById("pmSearch").value="";pmPage=1;renderModalTable();
+          openModal("pedidosModal");
+        }
+      }
+    });
+  }else{clearCanvas("chartDelayDist","✅ Nenhum atraso neste mês!");}
+
+  // 3. OTD by vendedor
+  destroyChart("bv");
+  const vMap={};
+  peds.forEach(p=>{const v=p.vendedor||"—";if(!vMap[v])vMap[v]={total:0,np:0,peds:[]};vMap[v].total++;if(p.dias<=0)vMap[v].np++;vMap[v].peds.push(p);});
+  const vArr=Object.entries(vMap).filter(x=>x[1].total>=2).sort((a,b)=>(b[1].np/b[1].total)-(a[1].np/a[1].total)).slice(0,10);
+  if(vArr.length){
+    const otdPcts=vArr.map(x=>+(x[1].np/x[1].total*100).toFixed(1));
+    charts.bv=new Chart(document.getElementById("chartByVendedor").getContext("2d"),{
+      type:"bar",
+      data:{
+        labels:vArr.map(x=>trunc(x[0],18)),
+        datasets:[{
+          label:"Taxa OTD (%)",
+          data:otdPcts,
+          backgroundColor:otdPcts.map(v=>v>=CFG.metaOTD?"#27AE60":"#EB5757"),
+          borderRadius:5
+        }]
+      },
+      options:{
+        indexAxis:"y",responsive:true,
+        plugins:{
+          legend:{display:false},
+          tooltip:{callbacks:{
+            title:ctx=>ctx[0].label,
+            label:ctx=>`OTD: ${ctx.parsed.x}%`,
+            afterLabel:ctx=>{
+              const e=vArr[ctx.dataIndex];
+              return`${e[1].np} no prazo de ${e[1].total} pedidos\nMeta: ${CFG.metaOTD}%\n▶ Clique para ver todos os pedidos`;
+            }
+          }}
+        },
+        scales:{
+          x:{min:0,max:100,ticks:{callback:v=>v+"%"},title:{display:true,text:"Taxa OTD % — Verde ≥ meta | Vermelho < meta",font:{size:10},color:"#888"}}
+        },
+        onClick:(evt,els)=>{
+          if(!els.length)return;
+          const e=vArr[els[0].index];
+          pmRows=e[1].peds;
+          const taxa=(e[1].np/e[1].total*100).toFixed(1);
+          const totalVV=e[1].peds.reduce((a,p)=>a+p.vlrMerc,0);
+          document.getElementById("pmTitle").textContent="👤 Pedidos de "+e[0];
+          document.getElementById("pmStats").innerHTML=`<div class="mstat">Total<strong>${e[1].total}</strong></div><div class="mstat">Valor Total<strong>R$ ${fmtM(totalVV)}</strong></div><div class="mstat">No Prazo<strong>${e[1].np}</strong></div><div class="mstat">Taxa OTD<strong>${taxa}%</strong></div>`;
+          document.getElementById("pmSearch").value="";pmPage=1;renderModalTable();
+          openModal("pedidosModal");
+        }
+      }
+    });
+  }else{clearCanvas("chartByVendedor","Dados insuficientes");}
+}
+
+function clearCanvas(id,msg){
+  const c=document.getElementById(id),ctx=c.getContext("2d");
+  ctx.clearRect(0,0,c.width,c.height);
+  ctx.fillStyle="#aaa";ctx.font="14px Arial";ctx.textAlign="center";
+  ctx.fillText(msg,c.width/2,60);
+}
+
+// ── HISTORY ───────────────────────────────────────────────────────────────
+function renderHistory(){
+  const keys=sortedMonths();
+  const tb=document.querySelector("#tblHistory tbody");tb.innerHTML="";
+  keys.forEach((k,i)=>{
+    const m=otdData.months[k],prev=i>0?otdData.months[keys[i-1]]:null;
+    const tr=(cur,prv,hi=true)=>{if(!prv||cur===prv)return"";const up=cur>prv;return` <span class="${(hi?up:!up)?"trend-up":"trend-down"}">${up?"↑":"↓"}</span>`;};
+    tb.innerHTML+=`<tr><td><strong>${m.label}</strong></td><td>${m.totalPedidos}${tr(m.totalPedidos,prev?.totalPedidos)}</td><td>${m.pedidosNoPrazo}${tr(m.pedidosNoPrazo,prev?.pedidosNoPrazo)}</td><td><strong style="color:${m.taxaOTD>=CFG.metaOTD?"#27AE60":"#EB5757"}">${m.taxaOTD.toFixed(2)}%</strong>${tr(m.taxaOTD,prev?.taxaOTD)}</td><td>${m.pedidosDataExata}${tr(m.pedidosDataExata,prev?.pedidosDataExata)}</td><td>${m.pedidosAdiantados}${tr(m.pedidosAdiantados,prev?.pedidosAdiantados)}</td><td>${m.pedidosAtrasados}${tr(m.pedidosAtrasados,prev?.pedidosAtrasados,false)}</td><td>${m.pedidosAte5DiasAtraso}${tr(m.pedidosAte5DiasAtraso,prev?.pedidosAte5DiasAtraso,false)}</td><td>${m.pedidosMais5DiasAtraso}${tr(m.pedidosMais5DiasAtraso,prev?.pedidosMais5DiasAtraso,false)}</td></tr>`;
+  });
+  const lbs=keys.map(k=>otdData.months[k].label),taxas=keys.map(k=>otdData.months[k].taxaOTD),tots=keys.map(k=>otdData.months[k].totalPedidos),nops=keys.map(k=>otdData.months[k].pedidosNoPrazo);
+  destroyChart("ln");
+  charts.ln=new Chart(document.getElementById("chartOTDLine").getContext("2d"),{type:"line",data:{labels:lbs,datasets:[{label:"Taxa OTD (%)",data:taxas,borderColor:CFG.colors.noPrazo,backgroundColor:"rgba(39,174,96,.1)",fill:true,tension:.35,pointRadius:6},{label:`Meta (${CFG.metaOTD}%)`,data:lbs.map(()=>CFG.metaOTD),borderColor:"#EB5757",borderDash:[6,4],pointRadius:0,fill:false}]},options:{responsive:true,scales:{y:{min:0,max:100,title:{display:true,text:"Taxa OTD (%)"}}},plugins:{tooltip:{mode:"index",intersect:false}}}});
+  destroyChart("gr");
+  charts.gr=new Chart(document.getElementById("chartGrouped").getContext("2d"),{type:"bar",data:{labels:lbs,datasets:[{label:"Total Pedidos",data:tots,backgroundColor:CFG.colors.totalPedidos,borderRadius:5},{label:"No Prazo",data:nops,backgroundColor:CFG.colors.noPrazo,borderRadius:5}]},options:{responsive:true,scales:{y:{beginAtZero:true,title:{display:true,text:"Nº de Pedidos"}}},plugins:{tooltip:{mode:"index",intersect:false}}}});
+}
+
+// ── DETAILS TAB ───────────────────────────────────────────────────────────
+function renderDetails(){
+  const mk=document.getElementById("detailMonth").value;
+  const m=otdData.months[mk];if(!m||!m.pedidos)return;
+  const srch=document.getElementById("searchInput").value.toLowerCase();
+  const ft=document.getElementById("filterType").value;
+  const fm=document.getElementById("filterMotivo").value;
+  dtFiltered=(m.pedidos||[]).filter(p=>{
+    const pk=mk+":"+p.pedido,pMot=motivoAssignments[pk];
+    if(ft==="noprazo"&&p.dias>0)return false;
+    if(ft==="exato"&&p.dias!==0)return false;
+    if(ft==="adiantados"&&p.dias>=0)return false;
+    if(ft==="ad1"&&p.dias!==-1)return false;
+    if(ft==="ad2"&&p.dias!==-2)return false;
+    if(ft==="ad3"&&p.dias!==-3)return false;
+    if(ft==="ad5plus"&&p.dias>-6)return false;
+    if(ft==="atrasados"&&p.dias<=0)return false;
+    if(ft==="at1a5"&&!(p.dias>=1&&p.dias<=5))return false;
+    if(ft==="at1"&&p.dias!==1)return false;
+    if(ft==="at2"&&p.dias!==2)return false;
+    if(ft==="at3"&&p.dias!==3)return false;
+    if(ft==="at4"&&p.dias!==4)return false;
+    if(ft==="at5"&&p.dias!==5)return false;
+    if(ft==="at5plus"&&p.dias<=5)return false;
+    if(ft==="com_motivo"&&pMot===undefined)return false;
+    if(ft==="sem_motivo_atraso"&&!(p.dias>0&&pMot===undefined))return false;
+    if(fm!=="all"&&pMot!==parseInt(fm))return false;
+    if(srch){const h=`${p.pedido} ${p.nomeFantasia} ${p.descricao} ${p.vendedor} ${p.nf} ${p.gerente}`.toLowerCase();if(!h.includes(srch))return false;}
+    return true;
+  });
+  dtPage=1;renderDetailPage(mk);
+}
+
+function renderDetailPage(mk){
+  mk=mk||document.getElementById("detailMonth").value;
+  const total=dtFiltered.length,pages=Math.ceil(total/PS)||1;
+  dtPage=Math.min(dtPage,pages);
+  const start=(dtPage-1)*PS,slice=dtFiltered.slice(start,start+PS);
+  const tb=document.getElementById("detailBody");
+  tb.innerHTML=slice.map(p=>{
+    const pk=mk+":"+p.pedido,pMot=motivoAssignments[pk];
+    const badge=p.dias<0?`<span class="badge b-early">${p.dias}d</span>`:p.dias===0?`<span class="badge b-exact">0d</span>`:p.dias<=5?`<span class="badge b-warn">+${p.dias}d</span>`:`<span class="badge b-err">+${p.dias}d</span>`;
+    const motLabel=pMot!==undefined
+      ?`<span class="mot-pill${p._motAuto?" auto":""}" title="${CFG.motivosAtraso[pMot]||""}">${trunc(CFG.motivosAtraso[pMot]||"?",20)}</span>`
+      :(p.dias>0?`<span class="mot-pill none" title="Sem motivo atribuído">sem motivo</span>`:`<span style="color:#ddd;font-size:.75rem">—</span>`);
+    const rowBg=p.dias>5?"background:#fff5f5":p.dias>0?"background:#fffbf4":"";
+    return `<tr style="${rowBg}"><td><strong>${p.pedido}</strong></td><td title="${p.cliente}">${trunc(p.nomeFantasia,20)}</td><td>${trunc(p.gerente||"",16)}</td><td>${p.vendedor}</td><td title="${p.descricao}">${trunc(p.descricao,20)}</td><td>${fmtDate(p.dtPedido)}</td><td>${p.prevEnt}</td><td>${p.dtFat}</td><td style="text-align:center">${badge}</td><td>${motLabel}</td><td>${p.nf}</td></tr>`;
+  }).join("");
+  const pg=document.getElementById("pagination");
+  let h=`<button onclick="goPage(${dtPage-1})" ${dtPage===1?"disabled":""}>‹</button>`;
+  for(let i=1;i<=pages;i++){if(pages>9&&i>3&&i<pages-2&&Math.abs(i-dtPage)>1){if(i===4||i===pages-3)h+=`<span style="padding:0 4px;color:#bbb">…</span>`;continue;}h+=`<button class="${i===dtPage?"active":""}" onclick="goPage(${i})">${i}</button>`;}
+  h+=`<button onclick="goPage(${dtPage+1})" ${dtPage===pages?"disabled":""}>›</button>`;
+  pg.innerHTML=h;
+  document.getElementById("pageInfo").textContent=`Mostrando ${start+1}–${Math.min(start+PS,total)} de ${total} pedidos`;
+}
+function goPage(p){dtPage=p;renderDetailPage();}
+
+// ── IMPORT XLSX ───────────────────────────────────────────────────────────
+function importXLSX(e){
+  const file=e.target.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    try{
+      const wb=XLSX.read(ev.target.result,{type:"array",cellDates:true});
+      // Smart sheet detection: prefer "Plan1" or first sheet with most rows
+      let wsName=wb.SheetNames.find(n=>/plan/i.test(n));
+      if(!wsName){
+        let maxRows=0;
+        wb.SheetNames.forEach(n=>{const r=XLSX.utils.sheet_to_json(wb.Sheets[n],{defval:""});if(r.length>maxRows){maxRows=r.length;wsName=n;}});
+      }
+      wsName=wsName||wb.SheetNames[0];
+      const rows=XLSX.utils.sheet_to_json(wb.Sheets[wsName],{defval:""});
+      if(!rows.length){toast("❌ Planilha vazia ou aba não encontrada","e");return;}
+
+      // Smart column mapping — case-insensitive, trim, with aliases
+      const headers=Object.keys(rows[0]);
+      const aliases={
+        "PEDIDO":["PEDIDO","NUM PEDIDO","NÚMERO PEDIDO","ORDER","NR PEDIDO"],
+        "CLIENTE":["CLIENTE","COD CLIENTE","CÓDIGO CLIENTE","CNPJ"],
+        "NOME FANTASIA":["NOME FANTASIA","NOME DO CLIENTE","FANTASIA","CLIENTE NOME","RAZÃO SOCIAL","RAZAO SOCIAL"],
+        "NOME VEND":["NOME VEND","VENDEDOR","NOME VENDEDOR","VEND"],
+        "NOME GER":["NOME GER","GERENTE","NOME GERENTE","GER"],
+        "COD PROD":["COD PROD","CODIGO PRODUTO","CÓD PRODUTO","PRODUTO COD","SKU"],
+        "DESCRICAO":["DESCRICAO","DESCRIÇÃO","DESCRIÇÃO PRODUTO","PRODUTO","DESC PRODUTO"],
+        "DT PEDIDO":["DT PEDIDO","DATA PEDIDO","DATA DO PEDIDO","DT PED"],
+        "PREV ENT":["PREV ENT","PREVISÃO ENTREGA","PREV ENTREGA","DATA SOLICITADA","DT PREV","PREV"],
+        "DT FAT":["DT FAT","DATA FAT","DATA FATURAMENTO","DT FATUR","DATA ENTREGA","DT ENTREGA"],
+        "DIAS":["DIAS","DIAS ATRASO","DIAS DIFERENÇA","DIFERENÇA DIAS","DIFF DIAS"],
+        "VLR MERC":["VLR MERC","VALOR MERC","VALOR","VL MERC","VLR MERCADORIA","VALOR MERCADORIA"],
+        "QTDE":["QTDE","QUANTIDADE","QTD","QTDE PRODUTO"],
+        "SITUACAO":["SITUACAO","SITUAÇÃO","STATUS","SITUAÇÃO PEDIDO"],
+        "NF":["NF","NOTA FISCAL","NF SAIDA","NF SAÍDA","NUM NF","NÚMERO NF"],
+        "MOTIVO":["MOTIVO","MOTIVO ATRASO","CAUSA","REASON"],
+        "OBS":["OBS","OBSERVACAO","OBSERVAÇÃO","OBSERVATION","NOTA"],
+      };
+      const colMap={};
+      Object.entries(aliases).forEach(([key,alts])=>{
+        const h=headers.find(h=>alts.some(a=>h.trim().toUpperCase()===a.toUpperCase()));
+        if(h)colMap[key]=h;
+      });
+
+      if(!colMap["PEDIDO"]){toast("❌ Coluna PEDIDO não encontrada. Colunas detectadas: "+headers.slice(0,6).join(", "),"e");return;}
+      if(!colMap["DT PEDIDO"]){toast("❌ Coluna DT PEDIDO não encontrada na planilha","e");return;}
+
+      const months={};
+      let autoMotivos=0,skipped=0,duplicates=0;
+      const seenPedidos=new Set();
+
+      rows.forEach(row=>{
+        // Skip rows that are clearly headers repeated inside the data
+        const pedRaw=row[colMap["PEDIDO"]];
+        if(String(pedRaw).toUpperCase().includes("PEDIDO"))return; // repeated header row
+        if(String(pedRaw).toUpperCase().includes("TOTAL"))return;  // totals row
+
+        // Skip rows with no meaningful data
+        const pnum=parseInt(pedRaw)||0;
+        if(!pnum){skipped++;return;}
+
+        // Parse dates
+        let prevEnt=cellToDS(row[colMap["PREV ENT"]]);
+        let dtFat=cellToDS(row[colMap["DT FAT"]]);
+        let dtp=row[colMap["DT PEDIDO"]];
+        let mk;
+        if(dtp instanceof Date){mk=dtp.toISOString().slice(0,7);}
+        else{const d=new Date(dtp);mk=(isNaN(d.getTime())||!dtp)?"0000-00":d.toISOString().slice(0,7);}
+        if(mk==="0000-00"){skipped++;return;}
+
+        // Calculate DIAS — trust the spreadsheet value when present, recalculate otherwise
+        let dias=parseInt(row[colMap["DIAS"]]);
+        if(isNaN(dias)||dias===null||row[colMap["DIAS"]]===""){
+          if(prevEnt&&dtFat)dias=calcDias(prevEnt,dtFat);
+          else dias=0;
+        }
+        // Sanity check: if DIAS > 365 or < -365, likely a data error — recalculate
+        if(Math.abs(dias)>365&&prevEnt&&dtFat){
+          const recalc=calcDias(prevEnt,dtFat);
+          if(Math.abs(recalc)<=365)dias=recalc;
+          else{skipped++;return;} // still insane — discard
+        }
+
+        // Skip NF=0 only if it's an atrasado with all dates empty (incomplete data)
+        // but keep NF=0 if the order is faturado (might just be a data gap)
+        const nf=parseInt(row[colMap["NF"]])||0;
+        const situacao=String(row[colMap["SITUACAO"]]||"").trim().toUpperCase();
+
+        // Smart deduplication: same PEDIDO+NF combination
+        const dedupKey=`${pnum}-${nf}-${dtFat}`;
+        if(seenPedidos.has(dedupKey)){duplicates++;return;}
+        seenPedidos.add(dedupKey);
+
+        // Skip completely empty rows (no client, no product, no value)
+        const nomeF=String(row[colMap["NOME FANTASIA"]]||"").trim();
+        const descr=String(row[colMap["DESCRICAO"]]||"").trim();
+        const vlr=parseFloat(row[colMap["VLR MERC"]])||0;
+        if(!nomeF&&!descr&&vlr===0){skipped++;return;}
+
+        if(!months[mk])months[mk]=[];
+        const motivoTxt=String(row[colMap["MOTIVO"]]||row[colMap["OBS"]]||"").trim();
+        const ped={
+          pedido:pnum,cliente:String(row[colMap["CLIENTE"]]||""),nomeFantasia:nomeF||String(row[colMap["CLIENTE"]]||""),
+          vendedor:String(row[colMap["NOME VEND"]]||""),gerente:String(row[colMap["NOME GER"]]||""),
+          codProd:String(row[colMap["COD PROD"]]||""),descricao:descr,
+          dtPedido:dtp instanceof Date?dtp.toISOString().slice(0,10):String(dtp||"").slice(0,10),
+          prevEnt,dtFat,dias,vlrMerc:vlr,
+          qtde:parseInt(row[colMap["QTDE"]])||0,situacao,nf,
+          _motivoText:motivoTxt,_motAuto:false
+        };
+
+        // Auto-assign motivo from spreadsheet column
+        if(motivoTxt&&dias>0){
+          const pkey=mk+":"+pnum;
+          const lower=motivoTxt.toLowerCase();
+          const keywords=["alinhamento","estoque","embalagem","fob","segurança","seguranca","logística","logistica","transporte","carregamento"];
+          let matched=CFG.motivosAtraso.findIndex(m=>lower.split(" ").some(w=>w.length>4&&m.toLowerCase().includes(w)));
+          if(matched<0){const ki=keywords.findIndex(kw=>lower.includes(kw));if(ki>=0)matched=Math.min(ki,CFG.motivosAtraso.length-1);}
+          if(matched>=0){motivoAssignments[pkey]=matched;ped._motAuto=true;autoMotivos++;}
+        }
+        months[mk].push(ped);
+      });
+
+      const addedL=[];
+      Object.keys(months).forEach(mk=>{
+        const peds=months[mk];if(!peds.length)return;
+        const total=peds.length,noPrazo=peds.filter(p=>p.dias<=0).length,exata=peds.filter(p=>p.dias===0).length;
+        const adiant=peds.filter(p=>p.dias<0).length,atras=peds.filter(p=>p.dias>0).length;
+        const ate5=peds.filter(p=>p.dias>=1&&p.dias<=5).length,mais5=peds.filter(p=>p.dias>5).length;
+        const taxa=Math.round(noPrazo/total*10000)/100;
+        const dA={},dD={};
+        [1,2,3,4,5].forEach(d=>{dA[String(d)]=peds.filter(p=>p.dias===d).length;dD[String(d)]=peds.filter(p=>p.dias===-d).length;});
+        dA["n>5"]=mais5;dD["n>5"]=peds.filter(p=>p.dias<-5).length;
+        const[y,mo]=mk.split("-");
+        const label=["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"][parseInt(mo)-1]+" "+y;
+        otdData.months[mk]={label,totalPedidos:total,pedidosNoPrazo:noPrazo,taxaOTD:taxa,pedidosDataExata:exata,pedidosAdiantados:adiant,pedidosAtrasados:atras,pedidosAte5DiasAtraso:ate5,pedidosMais5DiasAtraso:mais5,distribuicaoAtraso:dA,distribuicaoAdiantamento:dD,pedidos:peds};
+        addedL.push(label);
+      });
+      if(!addedL.length){toast("❌ Nenhum dado válido encontrado na planilha","e");return;}
+      otdData.exportedAt=new Date().toISOString();
+      let lsWarn="";
+      try{
+        localStorage.setItem("otdData",JSON.stringify(otdData));
+        localStorage.setItem("motivoAssignments",JSON.stringify(motivoAssignments));
+      }catch(lsErr){
+        console.warn("localStorage cheio ou indisponível:",lsErr);
+        lsWarn=" ⚠️ Armazenamento local cheio — use Exportar data.js para persistir.";
+      }
+      buildSels();
+      const ik=Object.keys(months).filter(k=>k!=="0000-00").sort().pop();
+      if(ik){document.getElementById("monthSelect").value=ik;document.getElementById("detailMonth").value=ik;}
+      document.getElementById("welcome").style.display="none";document.getElementById("tab-overview").classList.add("active");
+      renderAll();updateLastUpdated();
+      const totalImported=Object.values(months).reduce((a,b)=>a+b.length,0);
+      let msg=`✅ ${totalImported} pedidos importados — ${addedL.join(", ")}`;
+      if(autoMotivos>0)msg+=` · ${autoMotivos} motivo${autoMotivos>1?"s":""} auto-detectado${autoMotivos>1?"s":""}`;
+      if(skipped>0)msg+=` · ${skipped} linha${skipped>1?"s":""} inválida${skipped>1?"s":""} ignorada${skipped>1?"s":""}`;
+      if(duplicates>0)msg+=` · ${duplicates} duplicata${duplicates>1?"s":""} removida${duplicates>1?"s":""}`;
+      if(lsWarn)msg+=lsWarn;
+      toast(msg,lsWarn?"e":"s");
+    }catch(err){toast("❌ Erro na importação: "+err.message,"e");console.error(err);}
+    e.target.value="";
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// ── EXPORT DATA.JS ────────────────────────────────────────────────────────
+function exportDataJs(){
+  if(!Object.keys(otdData.months).length){toast("⚠️ Nenhum dado para exportar");return;}
+  const now=new Date(),stamp=`${String(now.getDate()).padStart(2,"0")}/${String(now.getMonth()+1).padStart(2,"0")}/${now.getFullYear()} ${String(now.getHours()).padStart(2,"0")}:${String(now.getMinutes()).padStart(2,"0")}`;
+  const c=`// Dashboard OTD - Dados exportados em ${stamp}\n// Substitua este arquivo na raiz do repositório para atualizar os dados\nconsole.log("Carregando otdData...");\nwindow.otdData = ${JSON.stringify({exportedAt:now.toISOString(),months:otdData.months},null,2)};\n`;
+  triggerDL(c,"data.js","text/javascript");
+  toast("✅ data.js exportado!","s");
+}
+
+// ── UTILS ─────────────────────────────────────────────────────────────────
+function destroyChart(id){if(charts[id]){charts[id].destroy();delete charts[id];}}
+function trunc(s,n){return s&&s.length>n?s.slice(0,n)+"…":s;}
+function fmtDate(v){
+  if(!v&&v!==0)return"";
+  const s=String(v).trim();
+  // Already DD/MM/YYYY
+  if(/^\d{2}\/\d{2}\/\d{4}$/.test(s))return s;
+  // ISO YYYY-MM-DD
+  if(/^\d{4}-\d{2}-\d{2}/.test(s)){const[y,m,d]=s.slice(0,10).split("-");return`${d}/${m}/${y}`;}
+  // Excel serial number
+  const n=parseFloat(s);
+  if(!isNaN(n)&&n>40000&&n<60000)return d2s(new Date((n-25569)*86400000));
+  return s;
+}
+function fmtM(v){return(v||0).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});}
+function cellToDS(v){
+  if(!v&&v!==0)return"";
+  if(v instanceof Date)return d2s(v);
+  const sv=String(v).trim();
+  if(/^\d{2}\/\d{2}\/\d{4}$/.test(sv))return sv;
+  // Excel serial number (dates stored as numbers)
+  const n=parseFloat(sv);
+  if(!isNaN(n)&&n>40000&&n<60000)return d2s(new Date((n-25569)*86400000));
+  return sv;
+}
+function d2s(d){if(!(d instanceof Date)||isNaN(d.getTime()))return"";return`${String(d.getDate()).padStart(2,"0")}/${String(d.getMonth()+1).padStart(2,"0")}/${d.getFullYear()}`;}
+function parseD(s){const p=String(s||"").trim().split("/");if(p.length!==3)return new Date("invalid");return new Date(+p[2],+p[1]-1,+p[0]);}
+function calcDias(a,b){const da=parseD(a),db=parseD(b);if(isNaN(da.getTime())||isNaN(db.getTime()))return 0;return Math.round((db-da)/86400000);}
+// ── LAST UPDATED ──────────────────────────────────────────────────────────
+function updateLastUpdated(){
+  const el=document.getElementById("lastUpdatedTxt");if(!el)return;
+  const ts=otdData.exportedAt;
+  if(!ts){el.textContent="—";return;}
+  try{
+    const d=new Date(ts);
+    const dd=String(d.getDate()).padStart(2,"0");
+    const mm=String(d.getMonth()+1).padStart(2,"0");
+    const yy=d.getFullYear();
+    const hh=String(d.getHours()).padStart(2,"0");
+    const mi=String(d.getMinutes()).padStart(2,"0");
+    el.textContent=`${dd}/${mm}/${yy} ${hh}:${mi}`;
+    // Highlight if data is older than 8 days
+    const ageMs=Date.now()-d.getTime();
+    const ageDays=ageMs/(1000*60*60*24);
+    el.style.color=ageDays>8?"#EB5757":ageDays>3?"#F2994A":"#27AE60";
+    el.title=ageDays>8?"⚠️ Base desatualizada há mais de 8 dias":ageDays>3?"Base com mais de 3 dias":"Base atualizada recentemente";
+  }catch(e){el.textContent="—";}
+}
+
+// ── EXPORTAR PLANILHA (XLSX completo de todos os meses) ───────────────────
+function exportPlanilhaXLSX(){
+  if(!Object.keys(otdData.months).length){toast("⚠️ Nenhum dado para exportar");return;}
+  const wb=XLSX.utils.book_new();
+  const allRows=[];
+  sortedMonths().forEach(mk=>{
+    const m=otdData.months[mk];
+    (m.pedidos||[]).forEach(p=>{
+      const motivoIdx=motivoAssignments[mk+":"+p.pedido];
+      const motivoTxt=motivoIdx!==undefined?(CFG.motivosAtraso[motivoIdx]||""):"";
+      allRows.push({
+        "Mês":m.label,
+        "Pedido":p.pedido,
+        "CNPJ/Cód.":p.cliente,
+        "Cliente":p.nomeFantasia,
+        "Gerente":p.gerente,
+        "Vendedor":p.vendedor,
+        "Cód. Produto":p.codProd,
+        "Produto":p.descricao,
+        "Dt. Pedido":fmtDate(p.dtPedido),
+        "Prev. Entrega":p.prevEnt||"",
+        "Dt. Faturamento":p.dtFat||"",
+        "DIAS":p.dias,
+        "Status OTD":p.dias<0?"Adiantado":p.dias===0?"No Prazo — Data Exata":"Atrasado",
+        "Valor (R$)":p.vlrMerc,
+        "Qtde":p.qtde,
+        "Situação":p.situacao,
+        "NF":p.nf,
+        "Motivo Atraso":motivoTxt
+      });
+    });
+  });
+  if(!allRows.length){toast("⚠️ Nenhum pedido encontrado");return;}
+  const ws=XLSX.utils.json_to_sheet(allRows);
+  // Column widths
+  ws["!cols"]=[
+    {wch:16},{wch:10},{wch:16},{wch:28},{wch:18},{wch:16},{wch:14},{wch:32},
+    {wch:12},{wch:14},{wch:16},{wch:6},{wch:22},{wch:14},{wch:8},{wch:12},{wch:10},{wch:44}
+  ];
+  XLSX.utils.book_append_sheet(wb,ws,"Pedidos OTD");
+  // Summary sheet
+  const summaryRows=sortedMonths().map(mk=>{
+    const m=otdData.months[mk];
+    return{
+      "Mês":m.label,"Total Pedidos":m.totalPedidos,"No Prazo":m.pedidosNoPrazo,
+      "Taxa OTD (%)":m.taxaOTD,"Data Exata":m.pedidosDataExata,
+      "Adiantados":m.pedidosAdiantados,"Atrasados":m.pedidosAtrasados,
+      "Até 5d":m.pedidosAte5DiasAtraso,"Mais 5d":m.pedidosMais5DiasAtraso
+    };
+  });
+  const ws2=XLSX.utils.json_to_sheet(summaryRows);
+  ws2["!cols"]=[{wch:16},{wch:14},{wch:12},{wch:14},{wch:12},{wch:12},{wch:12},{wch:10},{wch:10}];
+  XLSX.utils.book_append_sheet(wb,ws2,"Resumo Mensal");
+  const fname="OTD_Planilha_"+dateStamp()+".xlsx";
+  XLSX.writeFile(wb,fname);
+  toast("✅ Planilha exportada: "+fname,"s");
+}
+
+function toast(msg,type){const t=document.getElementById("toast");t.textContent=msg;t.className=type?"show "+type:"show";clearTimeout(t._t);t._t=setTimeout(()=>{t.className="";},4000);}
+</script>
+</body>
+</html>
