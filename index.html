@@ -9,6 +9,7 @@
 <script src="config.js"></script>
 <script src="data.js"></script>
 <script src="validator.js"></script>
+<script src="analytics.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:Arial,sans-serif;background:#f0f2f5;color:#222}
@@ -433,6 +434,8 @@ tbody tr:last-child td{border:none}
             <option value="ad1">↩ 1 dia adiantado</option>
             <option value="ad2">↩ 2 dias adiantados</option>
             <option value="ad3">↩ 3 dias adiantados</option>
+            <option value="ad4">↩ 4 dias adiantados</option>
+            <option value="ad5">↩ 5 dias adiantados</option>
             <option value="ad5plus">↩ Mais de 5 dias adiantados</option>
           </optgroup>
           <optgroup label="── Atrasados ──">
@@ -1054,6 +1057,8 @@ function renderDetails(){
     if(ft==="ad1"&&p.dias!==-1)return false;
     if(ft==="ad2"&&p.dias!==-2)return false;
     if(ft==="ad3"&&p.dias!==-3)return false;
+    if(ft==="ad4"&&p.dias!==-4)return false;
+    if(ft==="ad5"&&p.dias!==-5)return false;
     if(ft==="ad5plus"&&p.dias>-6)return false;
     if(ft==="atrasados"&&p.dias<=0)return false;
     if(ft==="at1a5"&&!(p.dias>=1&&p.dias<=5))return false;
