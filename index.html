@@ -48,7 +48,7 @@ body{font-family:Arial,sans-serif;background:#f0f2f5;color:#222}
 [data-tip]{cursor:help}
 
 /* KPI */
-.kpi-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:11px;margin-bottom:20px}
+.kpi-grid{display:grid;grid-template-columns:repeat(9,1fr);gap:11px;margin-bottom:20px}
 .kpi-card{background:#fff;border-radius:12px;padding:16px 10px 12px;box-shadow:0 2px 8px rgba(0,0,0,.07);text-align:center;border-top:4px solid #ccc;transition:transform .18s,box-shadow .18s;cursor:pointer}
 .kpi-card:hover{transform:translateY(-3px);box-shadow:0 8px 22px rgba(0,0,0,.11)}
 .kpi-icon{font-size:1.6rem;margin-bottom:5px}
@@ -142,8 +142,11 @@ tbody tr:last-child td{border:none}
 .tab-content{display:none}
 .tab-content.active{display:block}
 @media(max-width:1350px){
-  .kpi-grid{grid-template-columns:repeat(4,1fr)}
+  .kpi-grid{grid-template-columns:repeat(5,1fr)}
   .section-row,.three-col{grid-template-columns:1fr 1fr}
+}
+@media(max-width:1100px){
+  .kpi-grid{grid-template-columns:repeat(4,1fr)}
 }
 @media(max-width:900px){
   #header h1 span{display:none}
@@ -171,6 +174,47 @@ tbody tr:last-child td{border:none}
   .tab{padding:10px 12px;font-size:.78rem}
   .btn-label{display:none}
 }
+
+/* RISCO BADGES */
+.risk-high{background:#EB5757;color:#fff;padding:2px 9px;border-radius:20px;font-size:.75rem;font-weight:700}
+.risk-med{background:#F2994A;color:#fff;padding:2px 9px;border-radius:20px;font-size:.75rem;font-weight:700}
+.risk-low{background:#27AE60;color:#fff;padding:2px 9px;border-radius:20px;font-size:.75rem;font-weight:700}
+
+/* SORT INDICATORS */
+th.sortable{cursor:pointer;user-select:none}
+th.sortable::after{content:" ↕";opacity:.35;font-size:.7em}
+th.sort-asc::after{content:" ↑";opacity:1}
+th.sort-desc::after{content:" ↓";opacity:1}
+
+/* SPARKLINE */
+.sparkline{display:inline-block;vertical-align:middle;margin-left:6px}
+
+/* KPI projection card */
+.kpi-card.kpi-proj{border-style:dashed}
+
+/* SETTINGS MODAL */
+.settings-form label{display:block;font-size:.8rem;font-weight:700;color:#555;margin-bottom:3px;margin-top:12px}
+.settings-form input[type=number],.settings-form textarea{width:100%;padding:7px 10px;border:1.5px solid #dde3f0;border-radius:7px;font-size:.84rem;background:#fff}
+.settings-form textarea{min-height:110px;resize:vertical;font-family:monospace;font-size:.78rem}
+.settings-form input[type=number]:focus,.settings-form textarea:focus{outline:none;border-color:#1a3a6b}
+.settings-footer{display:flex;gap:8px;justify-content:flex-end;padding:12px 20px;border-top:1px solid #eee;background:#f8f9fc}
+.btn-settings{background:#1a3a6b;color:#fff}
+.btn-settings-cancel{background:#eee;color:#555}
+
+/* PRINT */
+@media print{
+  #header,#tabs,#ftip,#toast,.btn,.hdr-r,.filter-bar,.pgn,.pgn-info,.modal-ov,
+  .chart-info-btn,.mot-click-hint,.kpi-hint,.btn-sm,.modal-export-bar{display:none!important}
+  body{background:#fff;color:#000}
+  #main{padding:8px;max-width:100%}
+  .kpi-grid{grid-template-columns:repeat(5,1fr)!important}
+  .section-row,.three-col{grid-template-columns:1fr 1fr!important}
+  .card,.chart-card{box-shadow:none;border:1px solid #ddd;break-inside:avoid}
+  table{font-size:.78rem}
+  .tab-content{display:block!important}
+  #tab-history,#tab-details,#tab-clients{display:none!important}
+  #tab-overview{display:block!important}
+}
 </style>
 </head>
 <body>
@@ -183,12 +227,15 @@ tbody tr:last-child td{border:none}
     <button class="btn btn-imp" onclick="document.getElementById('fileInput').click()"><span class="btn-label">Importar Planilha</span></button>
     <button class="btn btn-export-xlsx" onclick="exportPlanilhaXLSX()"><span class="btn-label">Exportar Planilha</span></button>
     <button class="btn btn-exp" onclick="exportDataJs()"><span class="btn-label">Exportar data.js</span></button>
+    <button class="btn" style="background:#4278c6;color:#fff" onclick="window.print()" title="Imprimir relatório do mês atual"><span class="btn-label">🖨️ Imprimir</span></button>
+    <button class="btn btn-settings" onclick="openSettingsModal()" title="Configurações do dashboard">⚙️</button>
   </div>
 </div>
 <div id="tabs">
   <div class="tab active" data-tab="overview">📊 Visão Geral</div>
   <div class="tab" data-tab="history">📅 Histórico</div>
   <div class="tab" data-tab="details">🔍 Detalhes dos Pedidos</div>
+  <div class="tab" data-tab="clients">👥 Clientes</div>
   <div id="tabs-spacer"></div>
   <div id="last-updated">🕐 Base atualizada: <b id="lastUpdatedTxt">—</b></div>
 </div>
@@ -286,6 +333,18 @@ tbody tr:last-child td{border:none}
         <div class="kpi-icon">📌</div><div class="kpi-label">Até 5d Atraso</div>
         <div class="kpi-value" id="kAte5" style="color:#F2994A">—</div>
         <div class="kpi-hint">▶ clique para listar</div>
+      </div>
+      <div class="kpi-card" id="kValorRiscoCard" style="border-color:#9B1C1C"
+        data-tip="Valor em Risco&#10;Soma do valor (R$) de todos os pedidos atrasados.&#10;&#10;Fórmula: Σ vlrMerc dos pedidos com DIAS &gt; 0&#10;&#10;Indica o volume financeiro comprometido por atrasos no mês.">
+        <div class="kpi-icon">💰</div><div class="kpi-label">Valor em Risco</div>
+        <div class="kpi-value" id="kValorRisco" style="color:#9B1C1C;font-size:1.2rem">—</div>
+        <div class="kpi-sub" id="kValorRiscoPct"></div>
+      </div>
+      <div class="kpi-card kpi-proj" id="kProjecaoCard" style="border-color:#1a3a6b"
+        data-tip="Projeção OTD — Próximo Mês&#10;Estimativa baseada na tendência linear dos meses disponíveis.&#10;&#10;Fórmula: Última taxa OTD + Inclinação mensal (regressão linear)&#10;&#10;Disponível somente com 2+ meses de dados.&#10;Valor indicativo — não é garantia de resultado.">
+        <div class="kpi-icon">🔮</div><div class="kpi-label">Projeção Próx. Mês</div>
+        <div class="kpi-value" id="kProjecao" style="color:#1a3a6b;font-size:1.4rem">—</div>
+        <div class="kpi-sub" id="kProjecaoTend"></div>
       </div>
     </div>
 
@@ -462,11 +521,15 @@ tbody tr:last-child td{border:none}
     <div class="card" style="overflow-x:auto">
       <table id="tblDetails">
         <thead><tr>
-          <th>Pedido</th><th>Cliente</th><th>Gerente</th><th>Vendedor</th><th>Produto</th>
-          <th data-tip="Data de registro do pedido no sistema">Dt. Pedido</th>
+          <th class="sortable" data-col="pedido" data-dir="asc">Pedido</th>
+          <th class="sortable" data-col="nomeFantasia" data-dir="asc">Cliente</th>
+          <th class="sortable" data-col="gerente" data-dir="asc">Gerente</th>
+          <th class="sortable" data-col="vendedor" data-dir="asc">Vendedor</th>
+          <th>Produto</th>
+          <th class="sortable" data-col="dtPedido" data-dir="asc" data-tip="Data de registro do pedido no sistema">Dt. Pedido</th>
           <th data-tip="Data Solicitada / Prometida de entrega&#10;Campo PREV ENT da planilha">Prev. Entrega</th>
-          <th data-tip="Data real de faturamento/entrega&#10;Campo DT FAT da planilha">Dt. Fat.</th>
-          <th data-tip="DIAS = DT FAT − PREV ENT&#10;&#10;Negativo = adiantado (ex: -2 = 2 dias antes)&#10;Zero = exato na data&#10;Positivo = atrasado (ex: +3 = 3 dias depois)">Dias</th>
+          <th class="sortable" data-col="dtFat" data-dir="asc" data-tip="Data real de faturamento/entrega&#10;Campo DT FAT da planilha">Dt. Fat.</th>
+          <th class="sortable" data-col="dias" data-dir="desc" data-tip="DIAS = DT FAT − PREV ENT&#10;&#10;Negativo = adiantado (ex: -2 = 2 dias antes)&#10;Zero = exato na data&#10;Positivo = atrasado (ex: +3 = 3 dias depois)">Dias</th>
           <th data-tip="Motivo do atraso.&#10;&#10;🔵 Com borda = detectado automaticamente da coluna MOTIVO/OBS da planilha.&#10;Sem borda = atribuído via Visão Geral &gt; Motivos.&#10;&#10;Só pedidos atrasados (DIAS &gt; 0) têm motivo.">Motivo</th>
           <th>NF</th>
         </tr></thead>
@@ -474,6 +537,57 @@ tbody tr:last-child td{border:none}
       </table>
       <div class="pgn" id="pagination"></div>
       <div class="pgn-info" id="pageInfo"></div>
+    </div>
+  </div>
+
+  <!-- CLIENTES -->
+  <div id="tab-clients" class="tab-content">
+    <div class="filter-bar">
+      <div style="display:flex;align-items:center;gap:6px">
+        <span class="fl">Mês:</span>
+        <select id="clientMonth" style="min-width:155px"></select>
+      </div>
+      <input type="text" id="clientSearch" placeholder="🔍 Filtrar por cliente...">
+    </div>
+    <div class="card" style="overflow-x:auto;margin-bottom:18px">
+      <div class="card-title">👥 Score de Risco por Cliente
+        <span style="font-size:.67rem;font-weight:400;color:#bbb">Score 0–100: 40% frequência · 35% severidade · 25% valor em risco</span>
+      </div>
+      <table id="tblClients">
+        <thead><tr>
+          <th class="sortable" data-col="score" data-dir="desc">Score <span style="font-size:.68rem;color:#aaa">(risco)</span></th>
+          <th class="sortable" data-col="cliente" data-dir="asc">Cliente</th>
+          <th class="sortable" data-col="total" data-dir="desc">Total</th>
+          <th class="sortable" data-col="atrasados" data-dir="desc">Atrasados</th>
+          <th class="sortable" data-col="taxaOTD" data-dir="asc">Taxa OTD</th>
+          <th class="sortable" data-col="atrasoMedioDias" data-dir="desc">Atraso Médio</th>
+          <th class="sortable" data-col="valorAtrasado" data-dir="desc">Valor em Risco (R$)</th>
+          <th class="sortable" data-col="valorTotal" data-dir="desc">Valor Total (R$)</th>
+        </tr></thead>
+        <tbody id="clientBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL CONFIGURAÇÕES -->
+<div class="modal-ov" id="settingsModal">
+  <div class="modal" style="max-width:520px">
+    <div class="modal-hdr"><h3>⚙️ Configurações do Dashboard</h3><button class="modal-x" onclick="closeModal('settingsModal')">✕</button></div>
+    <div class="modal-body">
+      <div class="settings-form">
+        <label>Meta OTD (%)</label>
+        <input type="number" id="cfgMeta" min="0" max="100" step="1" value="85">
+        <label>Motivos de Atraso (um por linha)</label>
+        <textarea id="cfgMotivos"></textarea>
+        <label>Separador CSV (padrão: ;)</label>
+        <input type="text" id="cfgCsvSep" maxlength="1" style="max-width:60px">
+        <p style="margin-top:14px;font-size:.77rem;color:#aaa">As configurações ficam salvas no navegador (localStorage). Para restaurar os padrões, limpe o cache do navegador.</p>
+      </div>
+    </div>
+    <div class="settings-footer">
+      <button class="btn btn-settings-cancel" onclick="closeModal('settingsModal')">Cancelar</button>
+      <button class="btn btn-settings" onclick="saveSettings()">💾 Salvar</button>
     </div>
   </div>
 </div>
@@ -490,14 +604,30 @@ const CFG=(window.DASHBOARD_CONFIG&&window.DASHBOARD_CONFIG.otd)||{
     "Cliente se apresentou fora do horário de carregamento (FOB)",
     "Transporte do cliente se apresentou fora dos parâmetros de Segurança",
     "Atraso na logística de carregamento por parte da Usiquímica"
-  ]
+  ],
+  slaThresholds:[0,3,7],
+  staleDataDays:{warning:3,critical:8},
+  exportOptions:{csvSeparator:";",bom:true},
+  chartDefaults:{borderRadius:8,yAxisStepSize:50}
 };
+// Merge user-saved settings from localStorage (overrides config.js defaults)
+(function(){
+  try{
+    const saved=JSON.parse(localStorage.getItem("otdConfig")||"null");
+    if(saved){
+      if(typeof saved.metaOTD==="number")CFG.metaOTD=saved.metaOTD;
+      if(Array.isArray(saved.motivosAtraso)&&saved.motivosAtraso.length)CFG.motivosAtraso=saved.motivosAtraso;
+      if(saved.csvSeparator)CFG.exportOptions={...CFG.exportOptions,csvSeparator:saved.csvSeparator};
+    }
+  }catch(e){}
+})();
 
 // ── STATE ─────────────────────────────────────────────────────────────────
 let otdData={exportedAt:"",months:{}};
 let motivoAssignments={};
 let charts={};
 let dtPage=1,dtFiltered=[];
+let dtSortCol=null,dtSortDir=1;
 let pmPage=1,pmRows=[];
 const PS=20,PM=15;
 
@@ -569,6 +699,8 @@ window.addEventListener("load",()=>{
   document.getElementById("searchInput").addEventListener("input",()=>{dtPage=1;renderDetails();});
   document.getElementById("filterType").addEventListener("change",()=>{dtPage=1;renderDetails();});
   document.getElementById("filterMotivo").addEventListener("change",()=>{dtPage=1;renderDetails();});
+  document.getElementById("clientMonth").addEventListener("change",()=>renderClients());
+  document.getElementById("clientSearch").addEventListener("input",()=>renderClients());
   document.querySelectorAll(".modal-ov").forEach(m=>m.addEventListener("click",e=>{if(e.target===e.currentTarget)closeModal(e.target.id);}));
   document.addEventListener("keydown",e=>{if(e.key==="Escape"){document.querySelectorAll(".modal-ov.open").forEach(m=>closeModal(m.id));}});
 });
@@ -578,18 +710,23 @@ function switchTab(id){
   document.querySelectorAll(".tab-content").forEach(c=>c.classList.toggle("active",c.id==="tab-"+id));
   if(id==="history")renderHistory();
   if(id==="details"){
-    // Sync detailMonth with current monthSelect when entering tab
     const mk=document.getElementById("monthSelect").value;
     document.getElementById("detailMonth").value=mk;
     renderDetails();
+  }
+  if(id==="clients"){
+    const mk=document.getElementById("monthSelect").value;
+    document.getElementById("clientMonth").value=mk;
+    renderClients();
   }
 }
 
 // ── SELECTORS ─────────────────────────────────────────────────────────────
 function buildSels(){
   const keys=sortedMonths();
-  ["monthSelect","detailMonth"].forEach(sid=>{
+  ["monthSelect","detailMonth","clientMonth"].forEach(sid=>{
     const sel=document.getElementById(sid);
+    if(!sel)return;
     const prev=sel.value;
     sel.innerHTML="";
     keys.forEach(k=>{const o=document.createElement("option");o.value=k;o.text=otdData.months[k].label||k;sel.appendChild(o);});
@@ -614,13 +751,36 @@ function renderKPIs(m){
   el.textContent=m.taxaOTD.toFixed(2).replace(".",",")+"%";
   el.style.color=ok?"#27AE60":"#EB5757";
   el.closest(".kpi-card").style.borderColor=ok?"#27AE60":"#EB5757";
-  // update Taxa OTD tooltip dynamically
   el.closest(".kpi-card").setAttribute("data-tip",
     "Taxa OTD — On-Time Delivery\n% de pedidos entregues dentro do prazo.\n\nFórmula:\n(No Prazo ÷ Total) × 100\n\n"+
     m.pedidosNoPrazo+" ÷ "+m.totalPedidos+" × 100 = "+m.taxaOTD.toFixed(2)+"%\n\n"+
     (ok?"✅ Acima da meta ("+CFG.metaOTD+"%)":"⚠️ Abaixo da meta ("+CFG.metaOTD+"%)")
   );
   document.getElementById("kMeta").textContent="Meta: "+CFG.metaOTD+"%";
+
+  // Valor em Risco
+  const peds=m.pedidos||[];
+  const valorAtrasado=peds.filter(p=>p.dias>0).reduce((a,p)=>a+(p.vlrMerc||0),0);
+  const valorTotal=peds.reduce((a,p)=>a+(p.vlrMerc||0),0);
+  const pctRisco=valorTotal?(valorAtrasado/valorTotal*100).toFixed(1):"0.0";
+  document.getElementById("kValorRisco").textContent="R$ "+fmtM(valorAtrasado);
+  document.getElementById("kValorRiscoPct").textContent=pctRisco+"% do valor total";
+  document.getElementById("kValorRiscoCard").style.borderColor=parseFloat(pctRisco)>20?"#9B1C1C":parseFloat(pctRisco)>10?"#F2994A":"#27AE60";
+
+  // Projeção OTD
+  const trend=OTDAnalytics.getOTDTrend(otdData.months);
+  const proj=OTDAnalytics.projectNextMonth(trend);
+  if(proj!==null){
+    const projOk=proj>=CFG.metaOTD;
+    document.getElementById("kProjecao").textContent=proj.toFixed(1).replace(".",",")+"%";
+    document.getElementById("kProjecao").style.color=projOk?"#27AE60":"#EB5757";
+    document.getElementById("kProjecaoCard").style.borderColor=projOk?"#27AE60":"#EB5757";
+    const r2Txt=trend.r2!==null?" (R²="+trend.r2+")":"";
+    document.getElementById("kProjecaoTend").textContent="Tendência: "+trend.direcao+r2Txt;
+  }else{
+    document.getElementById("kProjecao").textContent="—";
+    document.getElementById("kProjecaoTend").textContent="Dados insuficientes";
+  }
 }
 function s(id,v){const el=document.getElementById(id);if(el)el.textContent=v;}
 
@@ -1026,15 +1186,45 @@ function clearCanvas(id,msg){
   ctx.fillText(msg,c.width/2,60);
 }
 
+// ── SPARKLINE ─────────────────────────────────────────────────────────────
+function sparkline(values,w=60,h=18){
+  if(values.length<2)return"";
+  const mn=Math.min(...values),mx=Math.max(...values),range=mx-mn||1;
+  const pts=values.map((v,i)=>{
+    const x=(i/(values.length-1))*w;
+    const y=h-((v-mn)/range)*(h-2)-1;
+    return`${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(" ");
+  return`<svg class="sparkline" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><polyline points="${pts}" fill="none" stroke="#1a3a6b" stroke-width="1.5"/></svg>`;
+}
+
 // ── HISTORY ───────────────────────────────────────────────────────────────
 function renderHistory(){
   const keys=sortedMonths();
+  const taxasAll=keys.map(k=>otdData.months[k].taxaOTD);
+  const yoy=OTDAnalytics.getYoYComparison(otdData.months);
+  const yoyMap={};yoy.forEach(y=>yoyMap[y.mk]=y);
   const tb=document.querySelector("#tblHistory tbody");tb.innerHTML="";
   keys.forEach((k,i)=>{
     const m=otdData.months[k],prev=i>0?otdData.months[keys[i-1]]:null;
-    const tr=(cur,prv,hi=true)=>{if(!prv||cur===prv)return"";const up=cur>prv;return` <span class="${(hi?up:!up)?"trend-up":"trend-down"}">${up?"↑":"↓"}</span>`;};
-    tb.innerHTML+=`<tr><td><strong>${m.label}</strong></td><td>${m.totalPedidos}${tr(m.totalPedidos,prev?.totalPedidos)}</td><td>${m.pedidosNoPrazo}${tr(m.pedidosNoPrazo,prev?.pedidosNoPrazo)}</td><td><strong style="color:${m.taxaOTD>=CFG.metaOTD?"#27AE60":"#EB5757"}">${m.taxaOTD.toFixed(2)}%</strong>${tr(m.taxaOTD,prev?.taxaOTD)}</td><td>${m.pedidosDataExata}${tr(m.pedidosDataExata,prev?.pedidosDataExata)}</td><td>${m.pedidosAdiantados}${tr(m.pedidosAdiantados,prev?.pedidosAdiantados)}</td><td>${m.pedidosAtrasados}${tr(m.pedidosAtrasados,prev?.pedidosAtrasados,false)}</td><td>${m.pedidosAte5DiasAtraso}${tr(m.pedidosAte5DiasAtraso,prev?.pedidosAte5DiasAtraso,false)}</td><td>${m.pedidosMais5DiasAtraso}${tr(m.pedidosMais5DiasAtraso,prev?.pedidosMais5DiasAtraso,false)}</td></tr>`;
+    const tr2=(cur,prv,hi=true)=>{if(!prv||cur===prv)return"";const up=cur>prv;return` <span class="${(hi?up:!up)?"trend-up":"trend-down"}">${up?"↑":"↓"}</span>`;};
+    // Sparkline uses all data up to and including this month
+    const spark=sparkline(taxasAll.slice(0,i+1));
+    const yoyEntry=yoyMap[k];
+    let yoyCell="—";
+    if(yoyEntry&&yoyEntry.delta!==null){
+      const sign=yoyEntry.delta>0?"+":"";
+      const cls=yoyEntry.direcao==="subindo"?"trend-up":yoyEntry.direcao==="caindo"?"trend-down":"";
+      yoyCell=`<span class="${cls}">${sign}${yoyEntry.delta.toFixed(1)}%</span>`;
+    }
+    tb.innerHTML+=`<tr><td><strong>${m.label}</strong></td><td>${m.totalPedidos}${tr2(m.totalPedidos,prev?.totalPedidos)}</td><td>${m.pedidosNoPrazo}${tr2(m.pedidosNoPrazo,prev?.pedidosNoPrazo)}</td><td><strong style="color:${m.taxaOTD>=CFG.metaOTD?"#27AE60":"#EB5757"}">${m.taxaOTD.toFixed(2)}%</strong>${tr2(m.taxaOTD,prev?.taxaOTD)}${spark}</td><td>${m.pedidosDataExata}${tr2(m.pedidosDataExata,prev?.pedidosDataExata)}</td><td>${m.pedidosAdiantados}${tr2(m.pedidosAdiantados,prev?.pedidosAdiantados)}</td><td>${m.pedidosAtrasados}${tr2(m.pedidosAtrasados,prev?.pedidosAtrasados,false)}</td><td>${m.pedidosAte5DiasAtraso}${tr2(m.pedidosAte5DiasAtraso,prev?.pedidosAte5DiasAtraso,false)}</td><td>${m.pedidosMais5DiasAtraso}${tr2(m.pedidosMais5DiasAtraso,prev?.pedidosMais5DiasAtraso,false)}</td><td style="text-align:center">${yoyCell}</td></tr>`;
   });
+  // Add YoY header column
+  const thead=document.querySelector("#tblHistory thead tr");
+  if(!thead.querySelector(".yoy-col")){
+    const th=document.createElement("th");th.className="yoy-col";th.dataset.tip="Variação vs. mesmo mês do ano anterior.\n\n↑ verde = melhorou\n↓ vermelho = piorou\n— = sem dados do ano anterior";th.textContent="vs. Ano Ant.";
+    thead.appendChild(th);
+  }
   const lbs=keys.map(k=>otdData.months[k].label),taxas=keys.map(k=>otdData.months[k].taxaOTD),tots=keys.map(k=>otdData.months[k].totalPedidos),nops=keys.map(k=>otdData.months[k].pedidosNoPrazo);
   destroyChart("ln");
   charts.ln=new Chart(document.getElementById("chartOTDLine").getContext("2d"),{type:"line",data:{labels:lbs,datasets:[{label:"Taxa OTD (%)",data:taxas,borderColor:CFG.colors.noPrazo,backgroundColor:"rgba(39,174,96,.1)",fill:true,tension:.35,pointRadius:6},{label:`Meta (${CFG.metaOTD}%)`,data:lbs.map(()=>CFG.metaOTD),borderColor:"#EB5757",borderDash:[6,4],pointRadius:0,fill:false}]},options:{responsive:true,scales:{y:{min:0,max:100,title:{display:true,text:"Taxa OTD (%)"}}},plugins:{tooltip:{mode:"index",intersect:false}}}});
@@ -1074,8 +1264,31 @@ function renderDetails(){
     if(srch){const h=`${p.pedido} ${p.nomeFantasia} ${p.descricao} ${p.vendedor} ${p.nf} ${p.gerente}`.toLowerCase();if(!h.includes(srch))return false;}
     return true;
   });
+  // Apply sort if active
+  if(dtSortCol){
+    dtFiltered.sort((a,b)=>{
+      const av=a[dtSortCol],bv=b[dtSortCol];
+      if(typeof av==="number"&&typeof bv==="number")return dtSortDir*(av-bv);
+      return dtSortDir*String(av||"").localeCompare(String(bv||""));
+    });
+    // Update sort indicators
+    document.querySelectorAll("#tblDetails th.sortable").forEach(th=>{
+      th.classList.remove("sort-asc","sort-desc");
+      if(th.dataset.col===dtSortCol)th.classList.add(dtSortDir===1?"sort-asc":"sort-desc");
+    });
+  }
   dtPage=1;renderDetailPage(mk);
 }
+
+// Bind sort click on tblDetails headers
+document.addEventListener("click",e=>{
+  const th=e.target.closest("#tblDetails th.sortable");
+  if(!th)return;
+  const col=th.dataset.col;
+  if(dtSortCol===col)dtSortDir*=-1;
+  else{dtSortCol=col;dtSortDir=th.dataset.dir==="desc"?-1:1;}
+  renderDetails();
+});
 
 function renderDetailPage(mk){
   mk=mk||document.getElementById("detailMonth").value;
@@ -1276,6 +1489,58 @@ function exportDataJs(){
   toast("✅ data.js exportado!","s");
 }
 
+// ── CLIENTS TAB ───────────────────────────────────────────────────────────
+let clientSortCol="score",clientSortDir=-1; // -1 = desc, 1 = asc
+function renderClients(){
+  const mk=document.getElementById("clientMonth").value;
+  if(!mk||!otdData.months[mk])return;
+  const srch=document.getElementById("clientSearch").value.toLowerCase();
+  let rows=OTDAnalytics.getClientRiskScores(otdData.months,mk);
+  if(srch)rows=rows.filter(r=>r.cliente.toLowerCase().includes(srch));
+  rows.sort((a,b)=>clientSortDir*(typeof a[clientSortCol]==="string"?a[clientSortCol].localeCompare(b[clientSortCol]):a[clientSortCol]-b[clientSortCol]));
+  // Update sort indicators
+  document.querySelectorAll("#tblClients th.sortable").forEach(th=>{
+    th.classList.remove("sort-asc","sort-desc");
+    if(th.dataset.col===clientSortCol)th.classList.add(clientSortDir===-1?"sort-desc":"sort-asc");
+  });
+  const tb=document.getElementById("clientBody");
+  if(!rows.length){tb.innerHTML=`<tr><td colspan="8" style="text-align:center;color:#aaa;padding:30px">Nenhum cliente encontrado para este mês.</td></tr>`;return;}
+  tb.innerHTML=rows.map(r=>{
+    const riskBadge=r.risco==="alto"?`<span class="risk-high">${r.score}</span>`:r.risco==="medio"?`<span class="risk-med">${r.score}</span>`:`<span class="risk-low">${r.score}</span>`;
+    const otdColor=r.taxaOTD>=CFG.metaOTD?"#27AE60":"#EB5757";
+    return`<tr><td style="text-align:center">${riskBadge}</td><td title="${r.cliente}">${trunc(r.cliente,28)}</td><td style="text-align:center">${r.total}</td><td style="text-align:center">${r.atrasados}</td><td style="text-align:center;color:${otdColor};font-weight:700">${r.taxaOTD.toFixed(1)}%</td><td style="text-align:center">${r.atrasoMedioDias>0?r.atrasoMedioDias+"d":"—"}</td><td style="text-align:right">R$ ${fmtM(r.valorAtrasado)}</td><td style="text-align:right">R$ ${fmtM(r.valorTotal)}</td></tr>`;
+  }).join("");
+}
+// Bind sort click on tblClients headers
+document.addEventListener("click",e=>{
+  const th=e.target.closest("#tblClients th.sortable");
+  if(!th)return;
+  const col=th.dataset.col;
+  if(clientSortCol===col)clientSortDir*=-1;
+  else{clientSortCol=col;clientSortDir=th.dataset.dir==="asc"?1:-1;}
+  renderClients();
+});
+
+// ── SETTINGS MODAL ────────────────────────────────────────────────────────
+function openSettingsModal(){
+  document.getElementById("cfgMeta").value=CFG.metaOTD;
+  document.getElementById("cfgMotivos").value=CFG.motivosAtraso.join("\n");
+  document.getElementById("cfgCsvSep").value=(CFG.exportOptions&&CFG.exportOptions.csvSeparator)||";";
+  openModal("settingsModal");
+}
+function saveSettings(){
+  const meta=parseInt(document.getElementById("cfgMeta").value);
+  const motivos=document.getElementById("cfgMotivos").value.split("\n").map(s=>s.trim()).filter(Boolean);
+  const csvSep=document.getElementById("cfgCsvSep").value||";";
+  if(isNaN(meta)||meta<0||meta>100){toast("❌ Meta OTD deve ser entre 0 e 100","e");return;}
+  if(!motivos.length){toast("❌ Informe ao menos um motivo de atraso","e");return;}
+  CFG.metaOTD=meta;CFG.motivosAtraso=motivos;if(CFG.exportOptions)CFG.exportOptions.csvSeparator=csvSep;
+  try{localStorage.setItem("otdConfig",JSON.stringify({metaOTD:meta,motivosAtraso:motivos,csvSeparator:csvSep}));}catch(e){}
+  buildSels();renderAll();
+  closeModal("settingsModal");
+  toast("✅ Configurações salvas!","s");
+}
+
 // ── UTILS ─────────────────────────────────────────────────────────────────
 function destroyChart(id){if(charts[id]){charts[id].destroy();delete charts[id];}}
 function trunc(s,n){return s&&s.length>n?s.slice(0,n)+"…":s;}
@@ -1321,8 +1586,9 @@ function updateLastUpdated(){
     // Highlight if data is older than 8 days
     const ageMs=Date.now()-d.getTime();
     const ageDays=ageMs/(1000*60*60*24);
-    el.style.color=ageDays>8?"#EB5757":ageDays>3?"#F2994A":"#27AE60";
-    el.title=ageDays>8?"⚠️ Base desatualizada há mais de 8 dias":ageDays>3?"Base com mais de 3 dias":"Base atualizada recentemente";
+    const stale=CFG.staleDataDays||{warning:3,critical:8};
+    el.style.color=ageDays>stale.critical?"#EB5757":ageDays>stale.warning?"#F2994A":"#27AE60";
+    el.title=ageDays>stale.critical?"⚠️ Base desatualizada há mais de "+stale.critical+" dias":ageDays>stale.warning?"Base com mais de "+stale.warning+" dias":"Base atualizada recentemente";
   }catch(e){el.textContent="—";}
 }
 

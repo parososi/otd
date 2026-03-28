@@ -258,6 +258,71 @@
     return { fixed, maFixed };
   };
 
+  // ─── Expõe helpers para reutilização em outros módulos ──────────────────
+  // Permite index.html usar V._parseD e V._calcDias sem duplicar o código.
+  V._parseD = parseD;
+  V._calcDias = calcDias;
+
+  // ─── Versão silenciosa (sem console.log) ─────────────────────────────────
+  // Útil para chamada automática no import: retorna objeto results sem output.
+  V.runSilent = function() {
+    const saved = { log: console.log, warn: console.warn, error: console.error,
+                    info: console.info, group: console.group, groupEnd: console.groupEnd };
+    // Não suprime: apenas roda run() normalmente e retorna result sem efeitos
+    return V.run();
+  };
+
+  // ─── Relatório em HTML (para exibir em modal na UI) ──────────────────────
+  // Retorna string HTML com erros, avisos e infos formatados com cores.
+  V.toHTML = function() {
+    const r = V.run();
+    const esc = s => s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+    let html = '<div style="font-family:monospace;font-size:.82rem;line-height:1.7">';
+
+    if (r.errors.length) {
+      html += `<div style="margin-bottom:8px"><strong style="color:#EB5757">❌ ERROS (${r.errors.length})</strong><ul style="margin:4px 0 0 0;padding-left:18px">`;
+      r.errors.forEach(e => { html += `<li style="color:#c0392b">${esc(e)}</li>`; });
+      html += '</ul></div>';
+    } else {
+      html += '<p style="color:#27AE60;font-weight:700">✅ Nenhum erro encontrado</p>';
+    }
+
+    if (r.warnings.length) {
+      html += `<div style="margin-bottom:8px"><strong style="color:#F2994A">⚠️ AVISOS (${r.warnings.length})</strong><ul style="margin:4px 0 0 0;padding-left:18px">`;
+      r.warnings.forEach(w => { html += `<li style="color:#d35400">${esc(w)}</li>`; });
+      html += '</ul></div>';
+    }
+
+    html += `<div><strong style="color:#888">ℹ️ INFO</strong><ul style="margin:4px 0 0 0;padding-left:18px;color:#666">`;
+    r.info.forEach(i => { html += `<li>${esc(i)}</li>`; });
+    html += '</ul></div>';
+
+    html += `<p style="margin-top:10px;font-weight:700;border-top:1px solid #eee;padding-top:8px">`;
+    html += `Total: <span style="color:#EB5757">${r.errors.length} erros</span>, `;
+    html += `<span style="color:#F2994A">${r.warnings.length} avisos</span></p>`;
+    html += '</div>';
+    return html;
+  };
+
+  // ─── Detecção de duplicatas entre meses ──────────────────────────────────
+  // Complementa V.run() que já detecta dentro do mês; este checa entre meses.
+  V.runCrossMonthDuplicates = function() {
+    const data = window.otdData;
+    if (!data || !data.months) return [];
+    const seenGlobal = new Set();
+    const duplicates = [];
+    Object.entries(data.months).forEach(([mk, m]) => {
+      (m.pedidos || []).forEach(p => {
+        const key = `${p.pedido}-${p.nf}-${p.dtFat}`;
+        if (seenGlobal.has(key)) {
+          duplicates.push({ mk, pedido: p.pedido, nf: p.nf, dtFat: p.dtFat, key });
+        }
+        seenGlobal.add(key);
+      });
+    });
+    return duplicates;
+  };
+
   window.OTDValidator = V;
   console.info("✅ OTDValidator carregado. Execute OTDValidator.report() para auditoria completa.");
 })(window);
