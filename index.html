@@ -1218,7 +1218,7 @@ function importXLSX(e){
           const lower=motivoTxt.toLowerCase();
           const kwMap={"alinhamento":0,"estoque":1,"embalagem":2,"fob":3,"segurança":4,"seguranca":4,"logística":5,"logistica":5,"transporte":4,"carregamento":5};
           let matched=CFG.motivosAtraso.findIndex(m=>lower.split(" ").some(w=>w.length>4&&m.toLowerCase().includes(w)));
-          if(matched<0){const kw=Object.keys(kwMap).find(k=>lower.includes(k));if(kw!==undefined)matched=kwMap[kw];}
+          if(matched<0){const kw=Object.keys(kwMap).find(k=>lower.includes(k));if(kw!==undefined)matched=Math.min(kwMap[kw],CFG.motivosAtraso.length-1);}
           if(matched>=0){motivoAssignments[pkey]=matched;ped._motAuto=true;autoMotivos++;}
         }
         months[mk].push(ped);
