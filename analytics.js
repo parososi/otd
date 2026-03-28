@@ -242,12 +242,12 @@ window.OTDAnalytics = (function () {
     const thresholds = slaThresholds || [0, 3, 7];
     const pedidos = m.pedidos || [];
     const total = pedidos.length;
-    // Monta os tiers dinamicamente a partir dos thresholds
+    // Monta os tiers: [no prazo] + [th[0]+1..th[1]] + [th[1]+1..th[2]] + [th[last]+1..]
     const tiers = [];
     tiers.push({ label: "No prazo", min: null, max: 0 });
     for (let i = 0; i < thresholds.length; i++) {
-      const min = thresholds[i] + (i === 0 ? 1 : 0);
-      const max = thresholds[i + 1] !== undefined ? thresholds[i + 1] : null;
+      const min = thresholds[i] + 1;
+      const max = i < thresholds.length - 1 ? thresholds[i + 1] : null;
       const label = max !== null
         ? `${min}–${max} dias`
         : `${min}+ dias`;
@@ -298,15 +298,16 @@ window.OTDAnalytics = (function () {
       const [y, mo] = mk.split("-");
       const priorKey = `${parseInt(y) - 1}-${mo}`;
       const cur = months[mk];
-      const prior = months[priorKey] || null;
+      const hasPrior = priorKey in months;
+      const prior = hasPrior ? months[priorKey] : null;
       return {
         mk,
         label: cur.label,
         taxaOTD: cur.taxaOTD,
         priorMk: priorKey,
-        priorTaxaOTD: prior ? prior.taxaOTD : null,
-        delta: prior !== null ? +(cur.taxaOTD - prior.taxaOTD).toFixed(2) : null,
-        direcao: prior === null ? null : cur.taxaOTD > prior.taxaOTD ? "subindo" : cur.taxaOTD < prior.taxaOTD ? "caindo" : "estável",
+        priorTaxaOTD: hasPrior ? prior.taxaOTD : null,
+        delta: hasPrior ? +(cur.taxaOTD - prior.taxaOTD).toFixed(2) : null,
+        direcao: !hasPrior ? null : cur.taxaOTD > prior.taxaOTD ? "subindo" : cur.taxaOTD < prior.taxaOTD ? "caindo" : "estável",
       };
     });
   }

@@ -969,8 +969,10 @@ function exportModalCSV(){
   const title=document.getElementById("pmTitle").textContent.replace(/[^a-zA-Z0-9\s\-]/g,"").trim().slice(0,30)||"OTD";
   const data=getModalExportRows(pmRows);
   const headers=Object.keys(data[0]);
-  const csv=[headers.join(";"),...data.map(r=>headers.map(h=>String(r[h]||"").replace(/;/g,",")).join(";"))].join("\n");
-  const bom="\uFEFF";
+  const sep=(CFG.exportOptions&&CFG.exportOptions.csvSeparator)||";";
+  const sepRegex=new RegExp(sep.replace(/[.*+?^${}()|[\]\\]/g,"\\$&"),"g");
+  const csv=[headers.join(sep),...data.map(r=>headers.map(h=>String(r[h]||"").replace(sepRegex,"")).join(sep))].join("\n");
+  const bom=(CFG.exportOptions&&CFG.exportOptions.bom!==false)?"\uFEFF":"";
   triggerDL(bom+csv,"OTD_"+title.replace(/\s+/g,"_")+"_"+dateStamp()+".csv","text/csv;charset=utf-8");
   toast("✅ CSV exportado!","s");
 }
@@ -999,8 +1001,11 @@ function exportMotivoCSV(){
   if(!mmCurrentPeds.length){toast("⚠️ Nenhum dado para exportar");return;}
   const data=getMotivoExportRows(mmCurrentPeds);
   const headers=Object.keys(data[0]);
-  const csv=[headers.join(";"),...data.map(r=>headers.map(h=>String(r[h]||"").replace(/;/g,",")).join(";"))].join("\n");
-  triggerDL("\uFEFF"+csv,"OTD_Motivo_"+dateStamp()+".csv","text/csv;charset=utf-8");
+  const sep=(CFG.exportOptions&&CFG.exportOptions.csvSeparator)||";";
+  const sepRegex=new RegExp(sep.replace(/[.*+?^${}()|[\]\\]/g,"\\$&"),"g");
+  const csv=[headers.join(sep),...data.map(r=>headers.map(h=>String(r[h]||"").replace(sepRegex,"")).join(sep))].join("\n");
+  const bom=(CFG.exportOptions&&CFG.exportOptions.bom!==false)?"\uFEFF":"";
+  triggerDL(bom+csv,"OTD_Motivo_"+dateStamp()+".csv","text/csv;charset=utf-8");
   toast("✅ CSV exportado!","s");
 }
 
@@ -1568,8 +1573,9 @@ function cellToDS(v){
   return sv;
 }
 function d2s(d){if(!(d instanceof Date)||isNaN(d.getTime()))return"";return`${String(d.getDate()).padStart(2,"0")}/${String(d.getMonth()+1).padStart(2,"0")}/${d.getFullYear()}`;}
-function parseD(s){const p=String(s||"").trim().split("/");if(p.length!==3)return new Date("invalid");return new Date(+p[2],+p[1]-1,+p[0]);}
-function calcDias(a,b){const da=parseD(a),db=parseD(b);if(isNaN(da.getTime())||isNaN(db.getTime()))return 0;return Math.round((db-da)/86400000);}
+// parseD e calcDias delegam para OTDValidator (evita duplicação)
+function parseD(s){return OTDValidator._parseD(s)||new Date("invalid");}
+function calcDias(a,b){const r=OTDValidator._calcDias(a,b);return r===null?0:r;}
 // ── LAST UPDATED ──────────────────────────────────────────────────────────
 function updateLastUpdated(){
   const el=document.getElementById("lastUpdatedTxt");if(!el)return;

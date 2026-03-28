@@ -136,8 +136,11 @@ ws = wb.sheet(sheet_name)
 headers = ws.row(1).map { |h| h.to_s.strip }
 
 col = ->(names) {
-  names.find { |n| headers.index { |h| h.upcase == n.upcase } }
-    .then { |found| found ? headers.index { |h| h.upcase == found.upcase } : nil }
+  names.each do |n|
+    idx = headers.index { |h| h.upcase == n.upcase }
+    return idx if idx
+  end
+  nil
 }
 
 cols = {
@@ -168,7 +171,15 @@ all_pedidos = []
   next if pnum == 0
 
   dt_ped_raw = cols[:dt_pedido] ? row[cols[:dt_pedido]] : nil
-  dt_ped = dt_ped_raw.is_a?(Date) ? dt_ped_raw : (Date.parse(dt_ped_raw.to_s) rescue nil)
+  dt_ped = if dt_ped_raw.is_a?(Date)
+    dt_ped_raw
+  elsif dt_ped_raw.to_s.strip.match?(%r{\A\d{2}/\d{2}/\d{4}\z})
+    Date.strptime(dt_ped_raw.to_s.strip, "%d/%m/%Y") rescue nil
+  elsif dt_ped_raw.to_s.strip.match?(%r{\A\d{4}-\d{2}-\d{2}\z})
+    Date.strptime(dt_ped_raw.to_s.strip, "%Y-%m-%d") rescue nil
+  else
+    Date.parse(dt_ped_raw.to_s) rescue nil
+  end
   next if dt_ped.nil?
 
   mk = dt_ped.strftime("%Y-%m")
