@@ -664,8 +664,9 @@ window.addEventListener("load",()=>{
   try{const s=localStorage.getItem("otdData");if(s)otdData=JSON.parse(s);}catch(e){}
   try{const s=localStorage.getItem("motivoAssignments");if(s)motivoAssignments=JSON.parse(s);}catch(e){}
   if(window.otdData&&window.otdData.months){
-    Object.keys(window.otdData.months).forEach(k=>{if(!otdData.months[k])otdData.months[k]=window.otdData.months[k];});
-    if(!otdData.exportedAt)otdData.exportedAt=window.otdData.exportedAt;
+    const fileNewer=!otdData.exportedAt||(window.otdData.exportedAt>otdData.exportedAt);
+    Object.keys(window.otdData.months).forEach(k=>{if(!otdData.months[k]||fileNewer)otdData.months[k]=window.otdData.months[k];});
+    if(!otdData.exportedAt||fileNewer)otdData.exportedAt=window.otdData.exportedAt;
   }
   if(Object.keys(otdData.months).length>0){buildSels();renderAll();updateLastUpdated();}
   else{document.getElementById("welcome").style.display="block";document.getElementById("tab-overview").classList.remove("active");}
