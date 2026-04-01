@@ -48,7 +48,7 @@ body{font-family:Arial,sans-serif;background:#f0f2f5;color:#222}
 [data-tip]{cursor:help}
 
 /* KPI */
-.kpi-grid{display:grid;grid-template-columns:repeat(9,1fr);gap:11px;margin-bottom:20px}
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:11px;margin-bottom:20px}
 .kpi-card{background:#fff;border-radius:12px;padding:16px 10px 12px;box-shadow:0 2px 8px rgba(0,0,0,.07);text-align:center;border-top:4px solid #ccc;transition:transform .18s,box-shadow .18s;cursor:pointer}
 .kpi-card:hover{transform:translateY(-3px);box-shadow:0 8px 22px rgba(0,0,0,.11)}
 .kpi-icon{font-size:1.6rem;margin-bottom:5px}
@@ -212,7 +212,7 @@ th.sort-desc::after{content:" ↓";opacity:1}
   .card,.chart-card{box-shadow:none;border:1px solid #ddd;break-inside:avoid}
   table{font-size:.78rem}
   .tab-content{display:block!important}
-  #tab-history,#tab-details,#tab-clients{display:none!important}
+  #tab-history,#tab-details{display:none!important}
   #tab-overview{display:block!important}
 }
 </style>
@@ -235,7 +235,6 @@ th.sort-desc::after{content:" ↓";opacity:1}
   <div class="tab active" data-tab="overview">📊 Visão Geral</div>
   <div class="tab" data-tab="history">📅 Histórico</div>
   <div class="tab" data-tab="details">🔍 Detalhes dos Pedidos</div>
-  <div class="tab" data-tab="clients">👥 Clientes</div>
   <div id="tabs-spacer"></div>
   <div id="last-updated">🕐 Base atualizada: <b id="lastUpdatedTxt">—</b></div>
 </div>
@@ -334,6 +333,19 @@ th.sort-desc::after{content:" ↓";opacity:1}
         <div class="kpi-value" id="kAte5" style="color:#F2994A">—</div>
         <div class="kpi-hint">▶ clique para listar</div>
       </div>
+      <div class="kpi-card" style="border-color:#9B1C1C"
+        data-tip="Pedidos Críticos&#10;Pedidos com mais de 5 dias de atraso.&#10;&#10;Fórmula: DIAS &gt; 5&#10;&#10;Atrasos graves que exigem ação imediata."
+        onclick="openKpi('at5plus')">
+        <div class="kpi-icon">🚨</div><div class="kpi-label">Críticos (&gt;5d)</div>
+        <div class="kpi-value" id="kMais5" style="color:#9B1C1C">—</div>
+        <div class="kpi-hint">▶ clique para listar</div>
+      </div>
+      <div class="kpi-card" id="kAtrasoMedioCard" style="border-color:#F2994A"
+        data-tip="Atraso Médio&#10;Média de dias de atraso entre os pedidos atrasados (DIAS &gt; 0).&#10;&#10;Fórmula: Σ DIAS dos atrasados ÷ Nº de atrasados&#10;&#10;Quanto menor, melhor. Mostra a severidade média dos atrasos.">
+        <div class="kpi-icon">📐</div><div class="kpi-label">Atraso Médio</div>
+        <div class="kpi-value" id="kAtrasoMedio" style="color:#F2994A;font-size:1.5rem">—</div>
+        <div class="kpi-sub" id="kAtrasoMedioSub"></div>
+      </div>
       <div class="kpi-card" id="kValorRiscoCard" style="border-color:#9B1C1C"
         data-tip="Valor em Risco&#10;Soma do valor (R$) de todos os pedidos atrasados.&#10;&#10;Fórmula: Σ vlrMerc dos pedidos com DIAS &gt; 0&#10;&#10;Indica o volume financeiro comprometido por atrasos no mês.">
         <div class="kpi-icon">💰</div><div class="kpi-label">Valor em Risco</div>
@@ -400,6 +412,28 @@ th.sort-desc::after{content:" ↓";opacity:1}
         </div>
         <div class="chart-wrap">
           <canvas id="chartByVendedor" height="210"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- TOP CLIENTES EM RISCO + GERENTES -->
+    <div class="section-row">
+      <div class="card">
+        <div class="card-title">⚠️ Top Clientes em Risco
+          <span style="font-size:.67rem;font-weight:400;color:#bbb">Score: 40% frequência · 35% severidade · 25% valor</span>
+        </div>
+        <table id="tblTopRisk">
+          <thead><tr><th style="width:50px;text-align:center">Score</th><th>Cliente</th><th style="text-align:center">Atrasados</th><th style="text-align:center">OTD</th><th style="text-align:right">Valor Risco</th></tr></thead>
+          <tbody id="topRiskBody"></tbody>
+        </table>
+      </div>
+      <div class="card" style="padding-bottom:14px">
+        <div class="card-title">👔 Desempenho por Gerente
+          <button class="chart-info-btn" style="position:static;margin-left:auto"
+            data-tip="Taxa OTD de cada gerente no mês.&#10;&#10;Fórmula por gerente:&#10;(Pedidos no prazo ÷ Total) × 100&#10;&#10;Verde = acima da meta | Vermelho = abaixo da meta&#10;Só exibe gerentes com 2+ pedidos.">ℹ️</button>
+        </div>
+        <div class="chart-wrap">
+          <canvas id="chartByGerente" height="210"></canvas>
         </div>
       </div>
     </div>
@@ -540,34 +574,6 @@ th.sort-desc::after{content:" ↓";opacity:1}
     </div>
   </div>
 
-  <!-- CLIENTES -->
-  <div id="tab-clients" class="tab-content">
-    <div class="filter-bar">
-      <div style="display:flex;align-items:center;gap:6px">
-        <span class="fl">Mês:</span>
-        <select id="clientMonth" style="min-width:155px"></select>
-      </div>
-      <input type="text" id="clientSearch" placeholder="🔍 Filtrar por cliente...">
-    </div>
-    <div class="card" style="overflow-x:auto;margin-bottom:18px">
-      <div class="card-title">👥 Score de Risco por Cliente
-        <span style="font-size:.67rem;font-weight:400;color:#bbb">Score 0–100: 40% frequência · 35% severidade · 25% valor em risco</span>
-      </div>
-      <table id="tblClients">
-        <thead><tr>
-          <th class="sortable" data-col="score" data-dir="desc">Score <span style="font-size:.68rem;color:#aaa">(risco)</span></th>
-          <th class="sortable" data-col="cliente" data-dir="asc">Cliente</th>
-          <th class="sortable" data-col="total" data-dir="desc">Total</th>
-          <th class="sortable" data-col="atrasados" data-dir="desc">Atrasados</th>
-          <th class="sortable" data-col="taxaOTD" data-dir="asc">Taxa OTD</th>
-          <th class="sortable" data-col="atrasoMedioDias" data-dir="desc">Atraso Médio</th>
-          <th class="sortable" data-col="valorAtrasado" data-dir="desc">Valor em Risco (R$)</th>
-          <th class="sortable" data-col="valorTotal" data-dir="desc">Valor Total (R$)</th>
-        </tr></thead>
-        <tbody id="clientBody"></tbody>
-      </table>
-    </div>
-  </div>
 </div>
 
 <!-- MODAL CONFIGURAÇÕES -->
@@ -663,6 +669,8 @@ const PS=20,PM=15;
 window.addEventListener("load",()=>{
   try{const s=localStorage.getItem("otdData");if(s)otdData=JSON.parse(s);}catch(e){}
   try{const s=localStorage.getItem("motivoAssignments");if(s)motivoAssignments=JSON.parse(s);}catch(e){}
+  // Load motivoAssignments from data.js if available and localStorage is empty
+  if(window.otdMotivoAssignments&&!Object.keys(motivoAssignments).length){motivoAssignments=window.otdMotivoAssignments;}
   if(window.otdData&&window.otdData.months){
     const fileNewer=!otdData.exportedAt||(window.otdData.exportedAt>otdData.exportedAt);
     Object.keys(window.otdData.months).forEach(k=>{if(!otdData.months[k]||fileNewer)otdData.months[k]=window.otdData.months[k];});
@@ -700,8 +708,6 @@ window.addEventListener("load",()=>{
   document.getElementById("searchInput").addEventListener("input",()=>{dtPage=1;renderDetails();});
   document.getElementById("filterType").addEventListener("change",()=>{dtPage=1;renderDetails();});
   document.getElementById("filterMotivo").addEventListener("change",()=>{dtPage=1;renderDetails();});
-  document.getElementById("clientMonth").addEventListener("change",()=>renderClients());
-  document.getElementById("clientSearch").addEventListener("input",()=>renderClients());
   document.querySelectorAll(".modal-ov").forEach(m=>m.addEventListener("click",e=>{if(e.target===e.currentTarget)closeModal(e.target.id);}));
   document.addEventListener("keydown",e=>{if(e.key==="Escape"){document.querySelectorAll(".modal-ov.open").forEach(m=>closeModal(m.id));}});
 });
@@ -715,17 +721,12 @@ function switchTab(id){
     document.getElementById("detailMonth").value=mk;
     renderDetails();
   }
-  if(id==="clients"){
-    const mk=document.getElementById("monthSelect").value;
-    document.getElementById("clientMonth").value=mk;
-    renderClients();
-  }
 }
 
 // ── SELECTORS ─────────────────────────────────────────────────────────────
 function buildSels(){
   const keys=sortedMonths();
-  ["monthSelect","detailMonth","clientMonth"].forEach(sid=>{
+  ["monthSelect","detailMonth"].forEach(sid=>{
     const sel=document.getElementById(sid);
     if(!sel)return;
     const prev=sel.value;
@@ -743,7 +744,7 @@ function curMo(){return otdData.months[document.getElementById("monthSelect").va
 function curMK(){return document.getElementById("monthSelect").value;}
 
 // ── MAIN RENDER ───────────────────────────────────────────────────────────
-function renderAll(){const m=curMo();if(!m)return;renderKPIs(m);renderDist(m);renderMotivos(m);renderOverviewChart(m);renderExtraCharts(m);}
+function renderAll(){const m=curMo();if(!m)return;renderKPIs(m);renderDist(m);renderTopRisk();renderMotivos(m);renderOverviewChart(m);renderExtraCharts(m);}
 
 function renderKPIs(m){
   s("kTotal",m.totalPedidos);s("kNoPrazo",m.pedidosNoPrazo);s("kExata",m.pedidosDataExata);
@@ -782,8 +783,32 @@ function renderKPIs(m){
     document.getElementById("kProjecao").textContent="—";
     document.getElementById("kProjecaoTend").textContent="Dados insuficientes";
   }
+
+  // Pedidos Críticos (>5d)
+  s("kMais5",m.pedidosMais5DiasAtraso||0);
+
+  // Atraso Médio
+  const delayed=peds.filter(p=>p.dias>0);
+  const avgDelay=delayed.length?(delayed.reduce((a,p)=>a+p.dias,0)/delayed.length):0;
+  document.getElementById("kAtrasoMedio").textContent=avgDelay?avgDelay.toFixed(1).replace(".",",")+"d":"—";
+  const maxDelay=delayed.length?Math.max(...delayed.map(p=>p.dias)):0;
+  document.getElementById("kAtrasoMedioSub").textContent=maxDelay?`Máx: ${maxDelay}d`:"";
+  document.getElementById("kAtrasoMedioCard").style.borderColor=avgDelay>5?"#9B1C1C":avgDelay>2?"#F2994A":"#27AE60";
 }
 function s(id,v){const el=document.getElementById(id);if(el)el.textContent=v;}
+
+// ── TOP CLIENTES EM RISCO ─────────────────────────────────────────────────
+function renderTopRisk(){
+  const mk=curMK();
+  const rows=OTDAnalytics.getClientRiskScores(otdData.months,mk).slice(0,5);
+  const tb=document.getElementById("topRiskBody");
+  if(!rows.length||!rows[0].atrasados){tb.innerHTML=`<tr><td colspan="5" style="text-align:center;color:#aaa;padding:20px">Nenhum cliente em risco neste mês.</td></tr>`;return;}
+  tb.innerHTML=rows.filter(r=>r.atrasados>0).slice(0,5).map(r=>{
+    const badge=r.risco==="alto"?`<span class="risk-high">${r.score}</span>`:r.risco==="medio"?`<span class="risk-med">${r.score}</span>`:`<span class="risk-low">${r.score}</span>`;
+    const otdColor=r.taxaOTD>=CFG.metaOTD?"#27AE60":"#EB5757";
+    return`<tr><td style="text-align:center">${badge}</td><td title="${r.cliente}">${trunc(r.cliente,24)}</td><td style="text-align:center">${r.atrasados}</td><td style="text-align:center;color:${otdColor};font-weight:700">${r.taxaOTD.toFixed(1)}%</td><td style="text-align:right">R$ ${fmtM(r.valorAtrasado)}</td></tr>`;
+  }).join("");
+}
 
 // ── DIST TABLES ───────────────────────────────────────────────────────────
 function renderDist(m){
@@ -1183,6 +1208,34 @@ function renderExtraCharts(m){
       }
     });
   }else{clearCanvas("chartByVendedor","Dados insuficientes");}
+
+  // 4. OTD by gerente
+  destroyChart("bg");
+  const gMap={};
+  peds.forEach(p=>{const g=p.gerente||"—";if(!gMap[g])gMap[g]={total:0,np:0,peds:[]};gMap[g].total++;if(p.dias<=0)gMap[g].np++;gMap[g].peds.push(p);});
+  const gArr=Object.entries(gMap).filter(x=>x[1].total>=2).sort((a,b)=>(b[1].np/b[1].total)-(a[1].np/a[1].total)).slice(0,10);
+  if(gArr.length){
+    const gPcts=gArr.map(x=>+(x[1].np/x[1].total*100).toFixed(1));
+    charts.bg=new Chart(document.getElementById("chartByGerente").getContext("2d"),{
+      type:"bar",
+      data:{
+        labels:gArr.map(x=>trunc(x[0],18)),
+        datasets:[{label:"Taxa OTD (%)",data:gPcts,backgroundColor:gPcts.map(v=>v>=CFG.metaOTD?"#27AE60":"#EB5757"),borderRadius:5}]
+      },
+      options:{
+        indexAxis:"y",responsive:true,
+        plugins:{
+          legend:{display:false},
+          tooltip:{callbacks:{
+            title:ctx=>ctx[0].label,
+            label:ctx=>`OTD: ${ctx.parsed.x}%`,
+            afterLabel:ctx=>{const e=gArr[ctx.dataIndex];return`${e[1].np} no prazo de ${e[1].total} pedidos\nMeta: ${CFG.metaOTD}%`;}
+          }}
+        },
+        scales:{x:{min:0,max:100,ticks:{callback:v=>v+"%"},title:{display:true,text:"Taxa OTD %",font:{size:10},color:"#888"}}}
+      }
+    });
+  }else{clearCanvas("chartByGerente","Dados insuficientes");}
 }
 
 function clearCanvas(id,msg){
@@ -1255,7 +1308,7 @@ function renderDetails(){
     if(ft==="ad3"&&p.dias!==-3)return false;
     if(ft==="ad4"&&p.dias!==-4)return false;
     if(ft==="ad5"&&p.dias!==-5)return false;
-    if(ft==="ad5plus"&&p.dias>-6)return false;
+    if(ft==="ad5plus"&&p.dias>=-5)return false;
     if(ft==="atrasados"&&p.dias<=0)return false;
     if(ft==="at1a5"&&!(p.dias>=1&&p.dias<=5))return false;
     if(ft==="at1"&&p.dias!==1)return false;
@@ -1387,7 +1440,14 @@ function importXLSX(e){
         let dtp=row[colMap["DT PEDIDO"]];
         let mk;
         if(dtp instanceof Date){mk=dtp.toISOString().slice(0,7);}
-        else{const d=new Date(dtp);mk=(isNaN(d.getTime())||!dtp)?"0000-00":d.toISOString().slice(0,7);}
+        else{
+          const sv=String(dtp||"").trim();
+          let d;
+          // Handle DD/MM/YYYY format (Brazilian standard)
+          if(/^\d{2}\/\d{2}\/\d{4}$/.test(sv)){const[dd,mm,yy]=sv.split("/");d=new Date(+yy,+mm-1,+dd);}
+          else{d=new Date(sv);}
+          mk=(isNaN(d.getTime())||!sv)?"0000-00":d.toISOString().slice(0,7);
+        }
         if(mk==="0000-00"){skipped++;return;}
 
         // Calculate DIAS — trust the spreadsheet value when present, recalculate otherwise
@@ -1490,42 +1550,11 @@ function importXLSX(e){
 function exportDataJs(){
   if(!Object.keys(otdData.months).length){toast("⚠️ Nenhum dado para exportar");return;}
   const now=new Date(),stamp=`${String(now.getDate()).padStart(2,"0")}/${String(now.getMonth()+1).padStart(2,"0")}/${now.getFullYear()} ${String(now.getHours()).padStart(2,"0")}:${String(now.getMinutes()).padStart(2,"0")}`;
-  const c=`// Dashboard OTD - Dados exportados em ${stamp}\n// Substitua este arquivo na raiz do repositório para atualizar os dados\nconsole.log("Carregando otdData...");\nwindow.otdData = ${JSON.stringify({exportedAt:now.toISOString(),months:otdData.months},null,2)};\n`;
+  const c=`// Dashboard OTD - Dados exportados em ${stamp}\n// Substitua este arquivo na raiz do repositório para atualizar os dados\nconsole.log("Carregando otdData...");\nwindow.otdData = ${JSON.stringify({exportedAt:now.toISOString(),months:otdData.months},null,2)};\nwindow.otdMotivoAssignments = ${JSON.stringify(motivoAssignments)};\n`;
   triggerDL(c,"data.js","text/javascript");
   toast("✅ data.js exportado!","s");
 }
 
-// ── CLIENTS TAB ───────────────────────────────────────────────────────────
-let clientSortCol="score",clientSortDir=-1; // -1 = desc, 1 = asc
-function renderClients(){
-  const mk=document.getElementById("clientMonth").value;
-  if(!mk||!otdData.months[mk])return;
-  const srch=document.getElementById("clientSearch").value.toLowerCase();
-  let rows=OTDAnalytics.getClientRiskScores(otdData.months,mk);
-  if(srch)rows=rows.filter(r=>r.cliente.toLowerCase().includes(srch));
-  rows.sort((a,b)=>clientSortDir*(typeof a[clientSortCol]==="string"?a[clientSortCol].localeCompare(b[clientSortCol]):a[clientSortCol]-b[clientSortCol]));
-  // Update sort indicators
-  document.querySelectorAll("#tblClients th.sortable").forEach(th=>{
-    th.classList.remove("sort-asc","sort-desc");
-    if(th.dataset.col===clientSortCol)th.classList.add(clientSortDir===-1?"sort-desc":"sort-asc");
-  });
-  const tb=document.getElementById("clientBody");
-  if(!rows.length){tb.innerHTML=`<tr><td colspan="8" style="text-align:center;color:#aaa;padding:30px">Nenhum cliente encontrado para este mês.</td></tr>`;return;}
-  tb.innerHTML=rows.map(r=>{
-    const riskBadge=r.risco==="alto"?`<span class="risk-high">${r.score}</span>`:r.risco==="medio"?`<span class="risk-med">${r.score}</span>`:`<span class="risk-low">${r.score}</span>`;
-    const otdColor=r.taxaOTD>=CFG.metaOTD?"#27AE60":"#EB5757";
-    return`<tr><td style="text-align:center">${riskBadge}</td><td title="${r.cliente}">${trunc(r.cliente,28)}</td><td style="text-align:center">${r.total}</td><td style="text-align:center">${r.atrasados}</td><td style="text-align:center;color:${otdColor};font-weight:700">${r.taxaOTD.toFixed(1)}%</td><td style="text-align:center">${r.atrasoMedioDias>0?r.atrasoMedioDias+"d":"—"}</td><td style="text-align:right">R$ ${fmtM(r.valorAtrasado)}</td><td style="text-align:right">R$ ${fmtM(r.valorTotal)}</td></tr>`;
-  }).join("");
-}
-// Bind sort click on tblClients headers
-document.addEventListener("click",e=>{
-  const th=e.target.closest("#tblClients th.sortable");
-  if(!th)return;
-  const col=th.dataset.col;
-  if(clientSortCol===col)clientSortDir*=-1;
-  else{clientSortCol=col;clientSortDir=th.dataset.dir==="asc"?1:-1;}
-  renderClients();
-});
 
 // ── SETTINGS MODAL ────────────────────────────────────────────────────────
 function openSettingsModal(){
