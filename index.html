@@ -340,13 +340,7 @@ th.sort-desc::after{content:" ↓";opacity:1}
         <div class="kpi-value" id="kMais5" style="color:#9B1C1C">—</div>
         <div class="kpi-hint">▶ clique para listar</div>
       </div>
-      <div class="kpi-card" id="kAtrasoMedioCard" style="border-color:#F2994A"
-        data-tip="Atraso Médio&#10;Média de dias de atraso entre os pedidos atrasados (DIAS &gt; 0).&#10;&#10;Fórmula: Σ DIAS dos atrasados ÷ Nº de atrasados&#10;&#10;Quanto menor, melhor. Mostra a severidade média dos atrasos.">
-        <div class="kpi-icon">📐</div><div class="kpi-label">Atraso Médio</div>
-        <div class="kpi-value" id="kAtrasoMedio" style="color:#F2994A;font-size:1.5rem">—</div>
-        <div class="kpi-sub" id="kAtrasoMedioSub"></div>
-      </div>
-      <div class="kpi-card" id="kValorRiscoCard" style="border-color:#9B1C1C"
+<div class="kpi-card" id="kValorRiscoCard" style="border-color:#9B1C1C"
         data-tip="Valor em Risco&#10;Soma do valor (R$) de todos os pedidos atrasados.&#10;&#10;Fórmula: Σ vlrMerc dos pedidos com DIAS &gt; 0&#10;&#10;Indica o volume financeiro comprometido por atrasos no mês.">
         <div class="kpi-icon">💰</div><div class="kpi-label">Valor em Risco</div>
         <div class="kpi-value" id="kValorRisco" style="color:#9B1C1C;font-size:1.2rem">—</div>
@@ -412,28 +406,6 @@ th.sort-desc::after{content:" ↓";opacity:1}
         </div>
         <div class="chart-wrap">
           <canvas id="chartByVendedor" height="210"></canvas>
-        </div>
-      </div>
-    </div>
-
-    <!-- TOP CLIENTES EM RISCO + GERENTES -->
-    <div class="section-row">
-      <div class="card">
-        <div class="card-title">⚠️ Top Clientes em Risco
-          <span style="font-size:.67rem;font-weight:400;color:#bbb">Score: 40% frequência · 35% severidade · 25% valor</span>
-        </div>
-        <table id="tblTopRisk">
-          <thead><tr><th style="width:50px;text-align:center">Score</th><th>Cliente</th><th style="text-align:center">Atrasados</th><th style="text-align:center">OTD</th><th style="text-align:right">Valor Risco</th></tr></thead>
-          <tbody id="topRiskBody"></tbody>
-        </table>
-      </div>
-      <div class="card" style="padding-bottom:14px">
-        <div class="card-title">👔 Desempenho por Gerente
-          <button class="chart-info-btn" style="position:static;margin-left:auto"
-            data-tip="Taxa OTD de cada gerente no mês.&#10;&#10;Fórmula por gerente:&#10;(Pedidos no prazo ÷ Total) × 100&#10;&#10;Verde = acima da meta | Vermelho = abaixo da meta&#10;Só exibe gerentes com 2+ pedidos.">ℹ️</button>
-        </div>
-        <div class="chart-wrap">
-          <canvas id="chartByGerente" height="210"></canvas>
         </div>
       </div>
     </div>
@@ -744,7 +716,7 @@ function curMo(){return otdData.months[document.getElementById("monthSelect").va
 function curMK(){return document.getElementById("monthSelect").value;}
 
 // ── MAIN RENDER ───────────────────────────────────────────────────────────
-function renderAll(){const m=curMo();if(!m)return;renderKPIs(m);renderDist(m);renderTopRisk();renderMotivos(m);renderOverviewChart(m);renderExtraCharts(m);}
+function renderAll(){const m=curMo();if(!m)return;renderKPIs(m);renderDist(m);renderMotivos(m);renderOverviewChart(m);renderExtraCharts(m);}
 
 function renderKPIs(m){
   s("kTotal",m.totalPedidos);s("kNoPrazo",m.pedidosNoPrazo);s("kExata",m.pedidosDataExata);
@@ -787,28 +759,8 @@ function renderKPIs(m){
   // Pedidos Críticos (>5d)
   s("kMais5",m.pedidosMais5DiasAtraso||0);
 
-  // Atraso Médio
-  const delayed=peds.filter(p=>p.dias>0);
-  const avgDelay=delayed.length?(delayed.reduce((a,p)=>a+p.dias,0)/delayed.length):0;
-  document.getElementById("kAtrasoMedio").textContent=avgDelay?avgDelay.toFixed(1).replace(".",",")+"d":"—";
-  const maxDelay=delayed.length?Math.max(...delayed.map(p=>p.dias)):0;
-  document.getElementById("kAtrasoMedioSub").textContent=maxDelay?`Máx: ${maxDelay}d`:"";
-  document.getElementById("kAtrasoMedioCard").style.borderColor=avgDelay>5?"#9B1C1C":avgDelay>2?"#F2994A":"#27AE60";
 }
 function s(id,v){const el=document.getElementById(id);if(el)el.textContent=v;}
-
-// ── TOP CLIENTES EM RISCO ─────────────────────────────────────────────────
-function renderTopRisk(){
-  const mk=curMK();
-  const rows=OTDAnalytics.getClientRiskScores(otdData.months,mk).slice(0,5);
-  const tb=document.getElementById("topRiskBody");
-  if(!rows.length||!rows[0].atrasados){tb.innerHTML=`<tr><td colspan="5" style="text-align:center;color:#aaa;padding:20px">Nenhum cliente em risco neste mês.</td></tr>`;return;}
-  tb.innerHTML=rows.filter(r=>r.atrasados>0).slice(0,5).map(r=>{
-    const badge=r.risco==="alto"?`<span class="risk-high">${r.score}</span>`:r.risco==="medio"?`<span class="risk-med">${r.score}</span>`:`<span class="risk-low">${r.score}</span>`;
-    const otdColor=r.taxaOTD>=CFG.metaOTD?"#27AE60":"#EB5757";
-    return`<tr><td style="text-align:center">${badge}</td><td title="${r.cliente}">${trunc(r.cliente,24)}</td><td style="text-align:center">${r.atrasados}</td><td style="text-align:center;color:${otdColor};font-weight:700">${r.taxaOTD.toFixed(1)}%</td><td style="text-align:right">R$ ${fmtM(r.valorAtrasado)}</td></tr>`;
-  }).join("");
-}
 
 // ── DIST TABLES ───────────────────────────────────────────────────────────
 function renderDist(m){
@@ -1208,34 +1160,6 @@ function renderExtraCharts(m){
       }
     });
   }else{clearCanvas("chartByVendedor","Dados insuficientes");}
-
-  // 4. OTD by gerente
-  destroyChart("bg");
-  const gMap={};
-  peds.forEach(p=>{const g=p.gerente||"—";if(!gMap[g])gMap[g]={total:0,np:0,peds:[]};gMap[g].total++;if(p.dias<=0)gMap[g].np++;gMap[g].peds.push(p);});
-  const gArr=Object.entries(gMap).filter(x=>x[1].total>=2).sort((a,b)=>(b[1].np/b[1].total)-(a[1].np/a[1].total)).slice(0,10);
-  if(gArr.length){
-    const gPcts=gArr.map(x=>+(x[1].np/x[1].total*100).toFixed(1));
-    charts.bg=new Chart(document.getElementById("chartByGerente").getContext("2d"),{
-      type:"bar",
-      data:{
-        labels:gArr.map(x=>trunc(x[0],18)),
-        datasets:[{label:"Taxa OTD (%)",data:gPcts,backgroundColor:gPcts.map(v=>v>=CFG.metaOTD?"#27AE60":"#EB5757"),borderRadius:5}]
-      },
-      options:{
-        indexAxis:"y",responsive:true,
-        plugins:{
-          legend:{display:false},
-          tooltip:{callbacks:{
-            title:ctx=>ctx[0].label,
-            label:ctx=>`OTD: ${ctx.parsed.x}%`,
-            afterLabel:ctx=>{const e=gArr[ctx.dataIndex];return`${e[1].np} no prazo de ${e[1].total} pedidos\nMeta: ${CFG.metaOTD}%`;}
-          }}
-        },
-        scales:{x:{min:0,max:100,ticks:{callback:v=>v+"%"},title:{display:true,text:"Taxa OTD %",font:{size:10},color:"#888"}}}
-      }
-    });
-  }else{clearCanvas("chartByGerente","Dados insuficientes");}
 }
 
 function clearCanvas(id,msg){
